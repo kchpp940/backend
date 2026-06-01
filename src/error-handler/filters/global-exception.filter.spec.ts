@@ -100,6 +100,32 @@ describe('GlobalExceptionFilter', () => {
       expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
       expect(jsonMock).toHaveBeenCalledWith({ status: 'ok' });
     });
+
+    it('returns 503 status for health endpoint failures without wrapping', () => {
+      const { host, jsonMock, res } = makeHost({ url: '/health' });
+      const healthErrorResponse = {
+        details: { database: { status: 'down' } },
+        status: 'error',
+      };
+
+      filter.catch(new HttpException(healthErrorResponse, HttpStatus.SERVICE_UNAVAILABLE), host);
+
+      expect(res.status).toHaveBeenCalledWith(HttpStatus.SERVICE_UNAVAILABLE);
+      expect(jsonMock).toHaveBeenCalledWith(healthErrorResponse);
+    });
+
+    it('returns 503 status for /health/deps endpoint failures', () => {
+      const { host, jsonMock, res } = makeHost({ url: '/health/deps' });
+      const healthErrorResponse = {
+        details: { redis: { status: 'down' } },
+        status: 'error',
+      };
+
+      filter.catch(new HttpException(healthErrorResponse, HttpStatus.SERVICE_UNAVAILABLE), host);
+
+      expect(res.status).toHaveBeenCalledWith(HttpStatus.SERVICE_UNAVAILABLE);
+      expect(jsonMock).toHaveBeenCalledWith(healthErrorResponse);
+    });
   });
 
   describe('positive cases', () => {

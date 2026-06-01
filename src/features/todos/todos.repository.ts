@@ -34,7 +34,7 @@ export class TodosRepository {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.todo.findMany({
         orderBy: orderBy,
-        skip: offset,
+        skip: (offset - 1) * limit,
         take: limit,
         where,
       }),

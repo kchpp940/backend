@@ -11,14 +11,14 @@ export class TodosQueryDto {
   @Transform(({ value }) => value === 'true' || value === true)
   completed?: boolean;
 
-  @ApiPropertyOptional({ default: 10, description: '每页返回的记录数', example: 10 })
+  @ApiPropertyOptional({ default: 10, example: 10 })
   @IsInt()
   @IsOptional()
   @Min(1)
   @Type(() => Number)
   limit?: number = 10;
 
-  @ApiPropertyOptional({ default: 0, description: '跳过的记录数（从 0 开始）', example: 0 })
+  @ApiPropertyOptional({ default: 0, example: 0 })
   @IsInt()
   @IsOptional()
   @Min(0)

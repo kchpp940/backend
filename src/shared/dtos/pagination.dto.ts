@@ -2,15 +2,15 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Expose } from 'class-transformer';
 
 export class PaginationMetaDto {
-  @ApiProperty({ description: '每页返回的记录数', example: 10 })
+  @ApiProperty({ example: 10 })
   @Expose()
   limit: number;
 
-  @ApiProperty({ description: '跳过的记录数（从 0 开始）', example: 0 })
+  @ApiProperty({ example: 1 })
   @Expose()
   offset: number;
 
-  @ApiProperty({ description: '符合条件的总记录数', example: 20 })
+  @ApiProperty({ example: 20 })
   @Expose()
   total: number;
 }

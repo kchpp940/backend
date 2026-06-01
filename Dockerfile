@@ -28,6 +28,7 @@ RUN npm ci --omit=dev --ignore-scripts
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/database-manager ./database-manager
+COPY scripts/healthcheck.js ./scripts/
 
 # Changing file ownership
 RUN chown -R nodeuser:nodegroup /app
@@ -38,5 +39,8 @@ ENV NODE_ENV=production
 ENV PORT=3000
 
 EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node scripts/healthcheck.js
 
 CMD ["node", "dist/src/main.js"]
