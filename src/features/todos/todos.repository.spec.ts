@@ -147,9 +147,17 @@ describe('TodosRepository', () => {
   describe('findOne', () => {
     describe('negative cases', () => {
       it('returns void when todo does not exist', async () => {
-        prismaMock.todo.findUnique.mockResolvedValue(null);
+        prismaMock.todo.findFirst.mockResolvedValue(null);
 
-        const result = await repository.findOne('missing-id');
+        const result = await repository.findOne('missing-id', 'user-1');
+
+        expect(result).toBeUndefined();
+      });
+
+      it('returns void when todo belongs to another user', async () => {
+        prismaMock.todo.findFirst.mockResolvedValue(null);
+
+        const result = await repository.findOne('todo-1', 'other-user');
 
         expect(result).toBeUndefined();
       });
@@ -157,27 +165,27 @@ describe('TodosRepository', () => {
 
     describe('positive cases', () => {
       it('returns TodoEntity when todo exists', async () => {
-        prismaMock.todo.findUnique.mockResolvedValue(todoData);
+        prismaMock.todo.findFirst.mockResolvedValue(todoData);
 
-        const result = await repository.findOne('todo-1');
+        const result = await repository.findOne('todo-1', 'user-1');
 
         expect(result).toBeInstanceOf(TodoEntity);
         expect(result?.id).toBe('todo-1');
       });
 
-      it('queries by id', async () => {
-        prismaMock.todo.findUnique.mockResolvedValue(todoData);
+      it('queries by id and userId', async () => {
+        prismaMock.todo.findFirst.mockResolvedValue(todoData);
 
-        await repository.findOne('todo-1');
+        await repository.findOne('todo-1', 'user-1');
 
-        expect(prismaMock.todo.findUnique).toHaveBeenCalledWith({ where: { id: 'todo-1' } });
+        expect(prismaMock.todo.findFirst).toHaveBeenCalledWith({ where: { id: 'todo-1', userId: 'user-1' } });
       });
 
       it('maps all fields to entity', async () => {
         const full = { completed: true, description: 'desc', id: 'todo-1', title: 'Title' };
-        prismaMock.todo.findUnique.mockResolvedValue(full);
+        prismaMock.todo.findFirst.mockResolvedValue(full);
 
-        const result = await repository.findOne('todo-1');
+        const result = await repository.findOne('todo-1', 'user-1');
 
         expect(result?.completed).toBe(true);
         expect(result?.description).toBe('desc');
@@ -187,63 +195,98 @@ describe('TodosRepository', () => {
 
   describe('remove', () => {
     describe('negative cases', () => {
-      it('propagates database error on delete', async () => {
-        prismaMock.todo.findUnique.mockResolvedValue(todoData);
-        prismaMock.todo.delete.mockRejectedValue(new Error('db error'));
+      it('returns false when todo does not exist', async () => {
+        prismaMock.todo.deleteMany.mockResolvedValue({ count: 0 });
 
-        await expect(repository.remove('todo-1')).rejects.toThrow('db error');
+        const result = await repository.remove('missing-id', 'user-1');
+
+        expect(result).toBe(false);
+      });
+
+      it('returns false when todo belongs to another user', async () => {
+        prismaMock.todo.deleteMany.mockResolvedValue({ count: 0 });
+
+        const result = await repository.remove('todo-1', 'other-user');
+
+        expect(result).toBe(false);
+      });
+
+      it('propagates database error on delete', async () => {
+        prismaMock.todo.deleteMany.mockRejectedValue(new Error('db error'));
+
+        await expect(repository.remove('todo-1', 'user-1')).rejects.toThrow('db error');
       });
     });
 
     describe('positive cases', () => {
-      it('calls findOne then deletes by id', async () => {
-        prismaMock.todo.findUnique.mockResolvedValue(todoData);
-        prismaMock.todo.delete.mockResolvedValue({});
+      it('returns true and calls deleteMany with id and userId', async () => {
+        prismaMock.todo.deleteMany.mockResolvedValue({ count: 1 });
 
-        await repository.remove('todo-1');
+        const result = await repository.remove('todo-1', 'user-1');
 
-        expect(prismaMock.todo.findUnique).toHaveBeenCalledWith({ where: { id: 'todo-1' } });
-        expect(prismaMock.todo.delete).toHaveBeenCalledWith({ where: { id: 'todo-1' } });
+        expect(result).toBe(true);
+        expect(prismaMock.todo.deleteMany).toHaveBeenCalledWith({
+          where: { id: 'todo-1', userId: 'user-1' },
+        });
       });
     });
   });
 
   describe('update', () => {
     describe('negative cases', () => {
-      it('returns void when prisma update returns falsy', async () => {
-        prismaMock.todo.update.mockResolvedValue(undefined);
+      it('returns void when updateMany matches 0 rows', async () => {
+        prismaMock.todo.updateMany.mockResolvedValue({ count: 0 });
 
-        const result = await repository.update('todo-1', { title: 'New' });
+        const result = await repository.update('todo-1', 'user-1', { title: 'New' });
+
+        expect(result).toBeUndefined();
+      });
+
+      it('returns void when todo belongs to another user', async () => {
+        prismaMock.todo.updateMany.mockResolvedValue({ count: 0 });
+
+        const result = await repository.update('todo-1', 'other-user', { title: 'New' });
+
+        expect(result).toBeUndefined();
+      });
+
+      it('returns void when updateMany matches but findUnique returns null (race condition)', async () => {
+        prismaMock.todo.updateMany.mockResolvedValue({ count: 1 });
+        prismaMock.todo.findUnique.mockResolvedValue(null);
+
+        const result = await repository.update('todo-1', 'user-1', { title: 'New' });
 
         expect(result).toBeUndefined();
       });
 
       it('propagates database error', async () => {
-        prismaMock.todo.update.mockRejectedValue(new Error('db error'));
+        prismaMock.todo.updateMany.mockRejectedValue(new Error('db error'));
 
-        await expect(repository.update('todo-1', { title: 'New' })).rejects.toThrow('db error');
+        await expect(repository.update('todo-1', 'user-1', { title: 'New' })).rejects.toThrow('db error');
       });
     });
 
     describe('positive cases', () => {
       it('updates and returns mapped entity', async () => {
         const updated = { ...todoData, title: 'Updated' };
-        prismaMock.todo.update.mockResolvedValue(updated);
+        prismaMock.todo.updateMany.mockResolvedValue({ count: 1 });
+        prismaMock.todo.findUnique.mockResolvedValue(updated);
 
-        const result = await repository.update('todo-1', { title: 'Updated' });
+        const result = await repository.update('todo-1', 'user-1', { title: 'Updated' });
 
         expect(result).toBeInstanceOf(TodoEntity);
         expect(result?.title).toBe('Updated');
       });
 
-      it('calls prisma update with correct args', async () => {
-        prismaMock.todo.update.mockResolvedValue(todoData);
+      it('calls prisma updateMany with correct args', async () => {
+        prismaMock.todo.updateMany.mockResolvedValue({ count: 1 });
+        prismaMock.todo.findUnique.mockResolvedValue(todoData);
 
-        await repository.update('todo-1', { completed: true, title: 'New' });
+        await repository.update('todo-1', 'user-1', { completed: true, title: 'New' });
 
-        expect(prismaMock.todo.update).toHaveBeenCalledWith({
+        expect(prismaMock.todo.updateMany).toHaveBeenCalledWith({
           data: { completed: true, title: 'New' },
-          where: { id: 'todo-1' },
+          where: { id: 'todo-1', userId: 'user-1' },
         });
       });
     });

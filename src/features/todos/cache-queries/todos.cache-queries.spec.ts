@@ -6,12 +6,16 @@ import { TodosCacheKeys } from './todos.cache-queries';
 describe('TodosCacheKeys', () => {
   describe('todo', () => {
     describe('positive cases', () => {
-      it('returns a key prefixed with "todo:"', () => {
-        expect(TodosCacheKeys.todo('abc-123')).toBe('todo:abc-123');
+      it('returns a key prefixed with "todo:<userId>:"', () => {
+        expect(TodosCacheKeys.todo('user-1', 'abc-123')).toBe('todo:user-1:abc-123');
       });
 
       it('returns unique keys for different ids', () => {
-        expect(TodosCacheKeys.todo('id-1')).not.toBe(TodosCacheKeys.todo('id-2'));
+        expect(TodosCacheKeys.todo('user-1', 'id-1')).not.toBe(TodosCacheKeys.todo('user-1', 'id-2'));
+      });
+
+      it('returns unique keys for different users with same id', () => {
+        expect(TodosCacheKeys.todo('user-1', 'id-1')).not.toBe(TodosCacheKeys.todo('user-2', 'id-1'));
       });
     });
   });
