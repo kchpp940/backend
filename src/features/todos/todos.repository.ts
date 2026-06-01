@@ -34,7 +34,7 @@ export class TodosRepository {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.todo.findMany({
         orderBy: orderBy,
-        skip: (offset - 1) * limit,
+        skip: offset,
         take: limit,
         where,
       }),
@@ -49,27 +49,20 @@ export class TodosRepository {
     });
   }
 
-  async findOne(id: string, userId: string): Promise<TodoEntity | void> {
-    const todo = await this.prisma.todo.findFirst({ where: { id, userId } });
+  async findOne(id: string): Promise<TodoEntity | void> {
+    const todo = await this.prisma.todo.findUnique({ where: { id } });
 
     if (todo) return TodoMapper.toEntity(todo);
   }
 
-  async remove(id: string, userId: string): Promise<boolean> {
-    const result = await this.prisma.todo.deleteMany({ where: { id, userId } });
-
-    return result.count > 0;
+  async remove(id: string): Promise<void> {
+    await this.findOne(id);
+    await this.prisma.todo.delete({ where: { id } });
   }
 
-  async update(id: string, userId: string, dto: UpdateTodoDto): Promise<TodoEntity | void> {
-    const result = await this.prisma.todo.updateMany({ data: dto, where: { id, userId } });
+  async update(id: string, dto: UpdateTodoDto): Promise<TodoEntity | void> {
+    const todo = await this.prisma.todo.update({ data: dto, where: { id } });
 
-    if (result.count === 0) return;
-
-    const updated = await this.prisma.todo.findUnique({ where: { id } });
-
-    if (!updated) return;
-
-    return TodoMapper.toEntity(updated);
+    if (todo) return TodoMapper.toEntity(todo);
   }
 }

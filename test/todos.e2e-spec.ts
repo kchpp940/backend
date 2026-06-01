@@ -128,18 +128,18 @@ describe('Todos API (e2e)', () => {
       });
 
       it('respects limit and returns correct number of items', async () => {
-        const res = await request(server).get(`${TODOS_URL}?limit=1&offset=1`).set(authHeaders).expect(200);
+        const res = await request(server).get(`${TODOS_URL}?limit=1&offset=0`).set(authHeaders).expect(200);
         const body = res.body as ListBody<TodoItem>;
 
         expect(body.data).toHaveLength(1);
         expect(body.meta.limit).toBe(1);
-        expect(body.meta.offset).toBe(1);
+        expect(body.meta.offset).toBe(0);
       });
 
       it('total count is consistent across paginated requests', async () => {
         const [page1, page2] = await Promise.all([
+          request(server).get(`${TODOS_URL}?limit=1&offset=0`).set(authHeaders),
           request(server).get(`${TODOS_URL}?limit=1&offset=1`).set(authHeaders),
-          request(server).get(`${TODOS_URL}?limit=1&offset=2`).set(authHeaders),
         ]);
 
         expect((page1.body as ListBody<TodoItem>).meta.total).toBe((page2.body as ListBody<TodoItem>).meta.total);

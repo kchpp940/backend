@@ -45,14 +45,14 @@ export class TodosService {
     return result;
   }
 
-  async findOne(id: string, userId: string): Promise<TodoEntity> {
-    const key = TodosCacheKeys.todo(userId, id);
+  async findOne(id: string): Promise<TodoEntity> {
+    const key = TodosCacheKeys.todo(id);
 
     const cached = await this.cacheStorage.get<TodoEntity>(key);
 
     if (cached) return cached;
 
-    const todo = await this.todosRepository.findOne(id, userId);
+    const todo = await this.todosRepository.findOne(id);
 
     if (!todo) throw new TodoNotFoundError(id);
 
@@ -77,7 +77,7 @@ export class TodosService {
 
   getPaginationQuery({ limit, offset }: TodosQueryDto): TodoPagination {
     const defaultLimit = 10;
-    const _offset = Math.max(Number(offset) || 1, 1);
+    const _offset = Math.max(Number(offset) || 0, 0);
     const _limit = Math.max(Number(limit) || defaultLimit, 1);
 
     return { limit: _limit, offset: _offset };
@@ -91,20 +91,20 @@ export class TodosService {
     return { order: order ?? SortOrder.DESC, sortBy: sortBy };
   }
 
-  async remove(id: string, userId: string): Promise<void> {
-    const deleted = await this.todosRepository.remove(id, userId);
-
-    if (!deleted) throw new TodoNotFoundError(id);
-
-    await this.cacheStorage.del(TodosCacheKeys.todo(userId, id));
-  }
-
-  async update(id: string, userId: string, dto: UpdateTodoDto): Promise<TodoEntity> {
-    const todo = await this.todosRepository.update(id, userId, dto);
+  async remove(id: string): Promise<void> {
+    const todo = await this.todosRepository.findOne(id);
 
     if (!todo) throw new TodoNotFoundError(id);
 
-    await this.cacheStorage.del(TodosCacheKeys.todo(userId, id));
+    await this.todosRepository.remove(id);
+
+    await this.cacheStorage.del(TodosCacheKeys.todo(id));
+  }
+
+  async update(id: string, dto: UpdateTodoDto): Promise<TodoEntity | void> {
+    const todo = await this.todosRepository.update(id, dto);
+
+    await this.cacheStorage.del(TodosCacheKeys.todo(id));
 
     return todo;
   }
