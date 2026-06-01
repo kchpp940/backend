@@ -74,7 +74,7 @@ describe('TodosController', () => {
       it('propagates service error', async () => {
         service.findOne.mockRejectedValue(new Error('not found'));
 
-        await expect(controller.findOne('missing-id', userInterface)).rejects.toThrow('not found');
+        await expect(controller.findOne('missing-id')).rejects.toThrow('not found');
       });
     });
 
@@ -82,11 +82,11 @@ describe('TodosController', () => {
       it('returns todo DTO by id', async () => {
         service.findOne.mockResolvedValue(todoData);
 
-        const result = await controller.findOne('todo-1', userInterface);
+        const result = await controller.findOne('todo-1');
 
         expect(result).toBeInstanceOf(TodoResponseDto);
         expect(result.id).toBe('todo-1');
-        expect(service.findOne).toHaveBeenCalledWith('user-1', 'todo-1');
+        expect(service.findOne).toHaveBeenCalledWith('todo-1');
       });
     });
   });
@@ -96,7 +96,7 @@ describe('TodosController', () => {
       it('propagates service error', async () => {
         service.remove.mockRejectedValue(new Error('not found'));
 
-        await expect(controller.remove('missing', userInterface)).rejects.toThrow('not found');
+        await expect(controller.remove('missing')).rejects.toThrow('not found');
       });
     });
 
@@ -104,8 +104,8 @@ describe('TodosController', () => {
       it('calls service remove and returns void', async () => {
         service.remove.mockResolvedValue(undefined);
 
-        await expect(controller.remove('todo-1', userInterface)).resolves.toBeUndefined();
-        expect(service.remove).toHaveBeenCalledWith('user-1', 'todo-1');
+        await expect(controller.remove('todo-1')).resolves.toBeUndefined();
+        expect(service.remove).toHaveBeenCalledWith('todo-1');
       });
     });
   });
@@ -115,7 +115,7 @@ describe('TodosController', () => {
       it('propagates service error', async () => {
         service.update.mockRejectedValue(new Error('db error'));
 
-        await expect(controller.update('todo-1', { title: 'New' }, userInterface)).rejects.toThrow('db error');
+        await expect(controller.update('todo-1', { title: 'New' })).rejects.toThrow('db error');
       });
     });
 
@@ -124,10 +124,10 @@ describe('TodosController', () => {
         const updated = { ...todoData, title: 'Updated' };
         service.update.mockResolvedValue(updated);
 
-        const result = await controller.update('todo-1', { title: 'Updated' }, userInterface);
+        const result = await controller.update('todo-1', { title: 'Updated' });
 
         expect(result).toBeInstanceOf(TodoResponseDto);
-        expect(service.update).toHaveBeenCalledWith('user-1', 'todo-1', { title: 'Updated' });
+        expect(service.update).toHaveBeenCalledWith('todo-1', { title: 'Updated' });
       });
     });
   });

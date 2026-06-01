@@ -205,6 +205,156 @@ await app.listen(configApp.appPort, configApp.appHost);
 
 Using getOrThrow ensures that the application fails fast if a required configuration value is missing.
 
+## Environment Variable Formats
+
+The application uses structured parsing for array and boolean environment variables to provide clear error messages when configuration values are malformed.
+
+### Boolean Values
+
+Boolean environment variables are parsed by trimming whitespace and converting to lowercase before matching:
+
+1. Value is trimmed: `value.trim()`
+2. Value is lowercased: `.toLowerCase()`
+3. Matched against: `true|1|yes` → `true`, `false|0|no` → `false`
+
+| Raw value                                 | After trim + lowercase | Parsed as |
+| ----------------------------------------- | ---------------------- | --------- |
+| `true`, `TRUE`, `True`                    | `true`                 | `true`    |
+| `"true"`, `"True"` (dotenv strips quotes) | `true`                 | `true`    |
+| `1`                                       | `1`                    | `true`    |
+| `yes`, `YES`, `Yes`                       | `yes`                  | `true`    |
+| `  true  `                                | `true`                 | `true`    |
+| `false`, `FALSE`, `False`                 | `false`                | `false`   |
+| `0`                                       | `0`                    | `false`   |
+| `no`, `NO`, `No`                          | `no`                   | `false`   |
+
+Applicable variables: `API_ALLOWED_NON_BROWSER_ORIGINS`, `LOG_PRETTY`, `SWAGGER_ENABLED`, `DATABASE_SSL`, `DATABASE_FAIL_FAST`, `REDIS_ENABLED`, `SENTRY_ENABLED`
+
+✅ Correct:
+
+```dotenv
+SWAGGER_ENABLED=true
+REDIS_ENABLED=false
+DATABASE_FAIL_FAST=1
+SENTRY_ENABLED=no
+LOG_PRETTY=TRUE
+REDIS_ENABLED="false"
+```
+
+❌ Wrong — these are **not** recognized as booleans:
+
+```dotenv
+SWAGGER_ENABLED=enabled
+REDIS_ENABLED=on
+DATABASE_FAIL_FAST=yep
+SENTRY_ENABLED=nope
+LOG_PRETTY=123
+```
+
+Error output for an invalid boolean:
+
+```
+❌ Environment variable parse error for: SWAGGER_ENABLED
+   Raw value: "enabled"
+   Expected format: boolean (true or false)
+   Details: Invalid boolean string: "enabled"
+```
+
+### Array Values
+
+Array environment variables must be valid JSON arrays. Different array types have specific format requirements.
+
+#### String Arrays
+
+Used for: `API_ALLOWED_ORIGINS`, `LOG_EXCLUDE_ENDPOINTS`, `SENTRY_IGNORED_ERRORS`
+
+✅ Correct:
+
+```dotenv
+API_ALLOWED_ORIGINS=["http://localhost:3001","http://example.com"]
+LOG_EXCLUDE_ENDPOINTS=["/health","/metrics"]
+SENTRY_IGNORED_ERRORS=["QueryFailedError","NotFoundError"]
+LOG_EXCLUDE_ENDPOINTS=[]
+```
+
+❌ Wrong — common mistakes:
+
+```dotenv
+# Comma-separated without brackets and quotes
+API_ALLOWED_ORIGINS=http://localhost:3001,http://example.com
+
+# Brackets but unquoted strings (invalid JSON)
+API_ALLOWED_ORIGINS=[http://localhost:3001]
+
+# Quoted strings but no brackets (not a JSON array)
+API_ALLOWED_ORIGINS="http://localhost:3001","http://example.com"
+
+# Single-quoted strings (JSON requires double quotes)
+LOG_EXCLUDE_ENDPOINTS=['/health','/metrics']
+```
+
+Error output for an invalid JSON array:
+
+```
+❌ Environment variable parse error for: API_ALLOWED_ORIGINS
+   Raw value: "[http://localhost:3001]"
+   Expected format: JSON array (e.g., ["item1", "item2"])
+   Details: Unexpected token 'h' at position 1
+```
+
+Error output for a value that parses as JSON but is not an array:
+
+```
+❌ Environment variable parse error for: API_ALLOWED_ORIGINS
+   Raw value: ""http://localhost:3001""
+   Expected format: JSON array (e.g., ["item1", "item2"])
+   Details: Parsed value is not an array, got string
+```
+
+#### Typed Arrays
+
+Used for: `DATABASE_LOG_LEVELS` (values must be one of: `info`, `query`, `warn`, `error`)
+
+✅ Correct:
+
+```dotenv
+DATABASE_LOG_LEVELS=["query","error","info","warn"]
+DATABASE_LOG_LEVELS=["query"]
+DATABASE_LOG_LEVELS=[]
+```
+
+❌ Wrong — common mistakes:
+
+```dotenv
+# Comma-separated without brackets and quotes
+DATABASE_LOG_LEVELS=query,error
+
+# Valid JSON array but contains invalid LogLevel value
+DATABASE_LOG_LEVELS=["query","debug"]
+```
+
+Error output for an invalid item type:
+
+```
+❌ Environment variable parse error for: DATABASE_LOG_LEVELS
+   Raw value: "[\"query\",\"debug\"]"
+   Expected format: JSON array of LogLevel (e.g., ["query", "error", "info", "warn"])
+   Details: Item at index 1 is not a LogLevel, got string
+```
+
+### Error Reporting
+
+When a configuration error occurs, the application will display a clear error message during startup. Each error includes:
+
+1. **Environment variable name** — which key has the problem
+2. **Raw value** — the exact string the application received
+3. **Expected format** — what the value should look like, with an example
+4. **Details** — the specific reason the value was rejected
+
+Errors are scoped per configuration module — if `API_ALLOWED_ORIGINS` fails, it will not pollute the validation of `DATABASE_LOG_LEVELS` or any other configuration module.
+
+This helps developers quickly identify and fix configuration issues without having to debug cryptic JSON parse errors.
+
 ## Why This Approach Works Well
 
 This configuration strategy provides several advantages:
@@ -214,5 +364,6 @@ This configuration strategy provides several advantages:
 - secrets remain secure and outside the repository
 - configuration is type-safe and validated
 - configuration is organized into small, predictable modules
+- clear error messages for malformed environment variables
 
 As the project grows, this structure allows the configuration system to scale without becoming difficult to maintain.

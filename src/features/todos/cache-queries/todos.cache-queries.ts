@@ -1,8 +1,8 @@
 import type { TodosQueryDto } from '../../../api/todos/dtos/queries/todos-query.dto';
 
 export class TodosCacheKeys {
-  static todo(userId: string, id: string): string {
-    return `todo:${userId}:${id}`;
+  static todo(id: string): string {
+    return `todo:${id}`;
   }
 
   static todos(userId: string, query: TodosQueryDto): string {

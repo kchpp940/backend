@@ -3,12 +3,13 @@ import { ConfigFactory } from '@nestjs/config/dist/interfaces';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsString } from 'class-validator';
 
+import { parseEnvBoolean } from '../common/utils/parse-env.util';
 import { validateConfig } from '../common/utils/validate-config.util';
 import { SwaggerConfigInterface } from './interfaces/swagger-config.interface';
 
 class SwaggerConfig {
   @IsBoolean()
-  @Transform(({ value }) => value === 'true')
+  @Transform(parseEnvBoolean)
   SWAGGER_ENABLED = true;
 
   @IsString()

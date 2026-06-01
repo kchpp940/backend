@@ -4,10 +4,11 @@ import { TodosQueryDto } from '../../api/todos/dtos/queries/todos-query.dto';
 import { CreateTodoDto } from '../../api/todos/dtos/requests/create-todo.dto';
 import { UpdateTodoDto } from '../../api/todos/dtos/requests/update-todo.dto';
 import { TodoNotFoundError } from '../../error-handler/errors/todo.errors';
+import { CacheStorage } from '../../modules/redis-manager/storages/cache.storage';
 import { PaginatedEntity } from '../../shared/entities/paginated.entity';
+import { TodosCacheKeys } from './cache-queries/todos.cache-queries';
 import { TodoEntity } from './entities/todo.entity';
 import { SortOrder, TodoSearchField, TodoSortField } from './interfaces/queries.enum';
-import { TodosCacheService } from './todos.cache.service';
 import { TodosRepository } from './todos.repository';
 import { TodoFilter, TodoPagination, TodoSort } from './types/todo.query';
 
@@ -15,19 +16,21 @@ import { TodoFilter, TodoPagination, TodoSort } from './types/todo.query';
 export class TodosService {
   constructor(
     private readonly todosRepository: TodosRepository,
-    private readonly todosCacheService: TodosCacheService,
+    private readonly cacheStorage: CacheStorage,
   ) {}
 
   async create(userId: string, dto: CreateTodoDto): Promise<TodoEntity | void> {
     const todo = await this.todosRepository.create(userId, dto);
 
-    await this.todosCacheService.invalidateTodosByUser(userId);
+    await this.cacheStorage.delByPattern(TodosCacheKeys.todosByUser(userId));
 
     return todo;
   }
 
   async findAll(userId: string, queryDto: TodosQueryDto): Promise<PaginatedEntity<TodoEntity>> {
-    const cached = await this.todosCacheService.getTodos(userId, queryDto);
+    const key = TodosCacheKeys.todos(userId, queryDto);
+
+    const cached = await this.cacheStorage.get<PaginatedEntity<TodoEntity>>(key);
 
     if (cached) return cached;
 
@@ -37,13 +40,15 @@ export class TodosService {
 
     const result = await this.todosRepository.findAll(userId, filterQuery, sortQuery, paginationQuery);
 
-    await this.todosCacheService.setTodos(userId, queryDto, result);
+    await this.cacheStorage.set(key, result, 30);
 
     return result;
   }
 
-  async findOne(userId: string, id: string): Promise<TodoEntity> {
-    const cached = await this.todosCacheService.getTodo(userId, id);
+  async findOne(id: string): Promise<TodoEntity> {
+    const key = TodosCacheKeys.todo(id);
+
+    const cached = await this.cacheStorage.get<TodoEntity>(key);
 
     if (cached) return cached;
 
@@ -51,7 +56,7 @@ export class TodosService {
 
     if (!todo) throw new TodoNotFoundError(id);
 
-    await this.todosCacheService.setTodo(userId, id, todo);
+    await this.cacheStorage.set(key, todo, 60);
 
     return todo;
   }
@@ -86,25 +91,21 @@ export class TodosService {
     return { order: order ?? SortOrder.DESC, sortBy: sortBy };
   }
 
-  async remove(userId: string, id: string): Promise<void> {
+  async remove(id: string): Promise<void> {
     const todo = await this.todosRepository.findOne(id);
 
     if (!todo) throw new TodoNotFoundError(id);
 
     await this.todosRepository.remove(id);
 
-    await this.todosCacheService.invalidateAllForUser(userId, id);
+    await this.cacheStorage.del(TodosCacheKeys.todo(id));
   }
 
-  async update(userId: string, id: string, dto: UpdateTodoDto): Promise<TodoEntity | void> {
-    const todo = await this.todosRepository.findOne(id);
+  async update(id: string, dto: UpdateTodoDto): Promise<TodoEntity | void> {
+    const todo = await this.todosRepository.update(id, dto);
 
-    if (!todo) throw new TodoNotFoundError(id);
+    await this.cacheStorage.del(TodosCacheKeys.todo(id));
 
-    const updated = await this.todosRepository.update(id, dto);
-
-    await this.todosCacheService.invalidateAllForUser(userId, id);
-
-    return updated;
+    return todo;
   }
 }

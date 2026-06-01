@@ -3,12 +3,12 @@ import { Test } from '@nestjs/testing';
 import type { TodosQueryDto } from '../../api/todos/dtos/queries/todos-query.dto';
 
 import { TodoNotFoundError } from '../../error-handler/errors/todo.errors';
+import { cacheStorageMock } from '../../mocks/cache-storage.mock';
 import { prismaMock } from '../../mocks/prisma.mock';
-import { todosCacheServiceMock } from '../../mocks/todos-cache-service.mock';
 import { PrismaService } from '../../modules/prisma/prisma.service';
+import { CacheStorage } from '../../modules/redis-manager/storages/cache.storage';
 import { PaginatedEntity } from '../../shared/entities/paginated.entity';
 import { SortOrder, TodoSearchField, TodoSortField } from './interfaces/queries.enum';
-import { TodosCacheService } from './todos.cache.service';
 import { TodosRepository } from './todos.repository';
 import { TodosService } from './todos.service';
 
@@ -23,7 +23,7 @@ describe('TodosService', () => {
         TodosService,
         TodosRepository,
         { provide: PrismaService, useValue: prismaMock },
-        { provide: TodosCacheService, useValue: todosCacheServiceMock },
+        { provide: CacheStorage, useValue: cacheStorageMock },
       ],
     }).compile();
 
@@ -42,16 +42,16 @@ describe('TodosService', () => {
 
       it('propagates error when cache invalidation fails', async () => {
         prismaMock.todo.create.mockResolvedValue(todoData);
-        todosCacheServiceMock.invalidateTodosByUser.mockRejectedValue(new Error('redis error'));
+        cacheStorageMock.delByPattern.mockRejectedValue(new Error('redis error'));
 
         await expect(service.create('user-1', { title: 'Test' })).rejects.toThrow('redis error');
       });
     });
 
     describe('positive cases', () => {
-      it('creates todo, invalidates user list cache, and returns the created entity', async () => {
+      it('creates todo, invalidates user cache, and returns the created entity', async () => {
         prismaMock.todo.create.mockResolvedValue(todoData);
-        todosCacheServiceMock.invalidateTodosByUser.mockResolvedValue(undefined);
+        cacheStorageMock.delByPattern.mockResolvedValue(undefined);
 
         const result = await service.create('user-1', { title: 'Test Todo' });
 
@@ -59,7 +59,7 @@ describe('TodosService', () => {
         expect(prismaMock.todo.create).toHaveBeenCalledWith({
           data: { title: 'Test Todo', userId: 'user-1' },
         });
-        expect(todosCacheServiceMock.invalidateTodosByUser).toHaveBeenCalledWith('user-1');
+        expect(cacheStorageMock.delByPattern).toHaveBeenCalledWith('todos:user-1:*');
       });
 
       it('creates todo with optional fields', async () => {
@@ -84,30 +84,34 @@ describe('TodosService', () => {
     describe('positive cases', () => {
       it('returns cached result without hitting the repository', async () => {
         const cached = new PaginatedEntity({ items: [todoData], limit: 10, offset: 1, total: 1 });
-        todosCacheServiceMock.getTodos.mockResolvedValue(cached);
+        cacheStorageMock.get.mockResolvedValue(cached);
 
         const result = await service.findAll('user-1', query);
 
         expect(result).toBe(cached);
         expect(prismaMock.$transaction).not.toHaveBeenCalled();
-        expect(todosCacheServiceMock.setTodos).not.toHaveBeenCalled();
+        expect(cacheStorageMock.set).not.toHaveBeenCalled();
       });
 
       it('fetches from repository on cache miss, stores in cache, and returns result', async () => {
-        todosCacheServiceMock.getTodos.mockResolvedValue(null);
+        cacheStorageMock.get.mockResolvedValue(null);
         prismaMock.$transaction.mockResolvedValue([[todoData], 1]);
-        todosCacheServiceMock.setTodos.mockResolvedValue(undefined);
+        cacheStorageMock.set.mockResolvedValue(undefined);
 
         const result = await service.findAll('user-1', query);
 
         expect(result.data).toHaveLength(1);
         expect(result.data[0].id).toBe('todo-1');
         expect(result.meta.total).toBe(1);
-        expect(todosCacheServiceMock.setTodos).toHaveBeenCalledWith('user-1', query, expect.any(PaginatedEntity));
+        expect(cacheStorageMock.set).toHaveBeenCalledWith(
+          expect.stringContaining('todos:user-1:'),
+          expect.any(PaginatedEntity),
+          30,
+        );
       });
 
       it('returns empty paginated result when no todos exist', async () => {
-        todosCacheServiceMock.getTodos.mockResolvedValue(null);
+        cacheStorageMock.get.mockResolvedValue(null);
         prismaMock.$transaction.mockResolvedValue([[], 0]);
 
         const result = await service.findAll('user-1', query);
@@ -121,43 +125,39 @@ describe('TodosService', () => {
   describe('findOne', () => {
     describe('negative cases', () => {
       it('throws TodoNotFoundError when todo does not exist', async () => {
-        todosCacheServiceMock.getTodo.mockResolvedValue(null);
+        cacheStorageMock.get.mockResolvedValue(null);
         prismaMock.todo.findUnique.mockResolvedValue(null);
 
-        await expect(service.findOne('user-1', 'missing-id')).rejects.toBeInstanceOf(TodoNotFoundError);
+        await expect(service.findOne('missing-id')).rejects.toBeInstanceOf(TodoNotFoundError);
       });
 
       it('TodoNotFoundError contains the requested id', async () => {
-        todosCacheServiceMock.getTodo.mockResolvedValue(null);
+        cacheStorageMock.get.mockResolvedValue(null);
         prismaMock.todo.findUnique.mockResolvedValue(null);
 
-        await expect(service.findOne('user-1', 'missing-id')).rejects.toMatchObject({ details: { id: 'missing-id' } });
+        await expect(service.findOne('missing-id')).rejects.toMatchObject({ details: { id: 'missing-id' } });
       });
     });
 
     describe('positive cases', () => {
       it('returns cached todo without querying repository', async () => {
-        todosCacheServiceMock.getTodo.mockResolvedValue(todoData);
+        cacheStorageMock.get.mockResolvedValue(todoData);
 
-        const result = await service.findOne('user-1', 'todo-1');
+        const result = await service.findOne('todo-1');
 
         expect(result).toBe(todoData);
         expect(prismaMock.todo.findUnique).not.toHaveBeenCalled();
       });
 
       it('fetches from repository on cache miss, caches result, and returns entity', async () => {
-        todosCacheServiceMock.getTodo.mockResolvedValue(null);
+        cacheStorageMock.get.mockResolvedValue(null);
         prismaMock.todo.findUnique.mockResolvedValue(todoData);
-        todosCacheServiceMock.setTodo.mockResolvedValue(undefined);
+        cacheStorageMock.set.mockResolvedValue(undefined);
 
-        const result = await service.findOne('user-1', 'todo-1');
+        const result = await service.findOne('todo-1');
 
         expect(result.id).toBe('todo-1');
-        expect(todosCacheServiceMock.setTodo).toHaveBeenCalledWith(
-          'user-1',
-          'todo-1',
-          expect.objectContaining({ id: 'todo-1' }),
-        );
+        expect(cacheStorageMock.set).toHaveBeenCalledWith('todo:todo-1', expect.objectContaining({ id: 'todo-1' }), 60);
       });
     });
   });
@@ -167,13 +167,13 @@ describe('TodosService', () => {
       it('throws TodoNotFoundError when todo does not exist', async () => {
         prismaMock.todo.findUnique.mockResolvedValue(null);
 
-        await expect(service.remove('user-1', 'missing-id')).rejects.toBeInstanceOf(TodoNotFoundError);
+        await expect(service.remove('missing-id')).rejects.toBeInstanceOf(TodoNotFoundError);
       });
 
       it('does not call delete when todo is not found', async () => {
         prismaMock.todo.findUnique.mockResolvedValue(null);
 
-        await service.remove('user-1', 'missing-id').catch(() => {
+        await service.remove('missing-id').catch(() => {
           return;
         });
 
@@ -182,41 +182,38 @@ describe('TodosService', () => {
     });
 
     describe('positive cases', () => {
-      it('deletes todo from repository and invalidates all user caches', async () => {
+      it('deletes todo from repository and removes from cache', async () => {
         prismaMock.todo.findUnique.mockResolvedValue(todoData);
         prismaMock.todo.delete.mockResolvedValue({});
-        todosCacheServiceMock.invalidateAllForUser.mockResolvedValue(undefined);
+        cacheStorageMock.del.mockResolvedValue(undefined);
 
-        await service.remove('user-1', 'todo-1');
+        await service.remove('todo-1');
 
         expect(prismaMock.todo.delete).toHaveBeenCalledWith({ where: { id: 'todo-1' } });
-        expect(todosCacheServiceMock.invalidateAllForUser).toHaveBeenCalledWith('user-1', 'todo-1');
+        expect(cacheStorageMock.del).toHaveBeenCalledWith('todo:todo-1');
       });
     });
   });
 
   describe('update', () => {
     describe('positive cases', () => {
-      it('updates todo, invalidates all user caches, and returns updated entity', async () => {
+      it('updates todo, clears cache, and returns updated entity', async () => {
         const updated = { ...todoData, title: 'Updated Title' };
-        prismaMock.todo.findUnique.mockResolvedValue(todoData);
         prismaMock.todo.update.mockResolvedValue(updated);
-        todosCacheServiceMock.invalidateAllForUser.mockResolvedValue(undefined);
+        cacheStorageMock.del.mockResolvedValue(undefined);
 
-        const result = await service.update('user-1', 'todo-1', { title: 'Updated Title' });
+        const result = await service.update('todo-1', { title: 'Updated Title' });
 
         expect(result?.title).toBe('Updated Title');
-        expect(todosCacheServiceMock.invalidateAllForUser).toHaveBeenCalledWith('user-1', 'todo-1');
+        expect(cacheStorageMock.del).toHaveBeenCalledWith('todo:todo-1');
       });
 
-      it('invalidates caches even when update returns void', async () => {
-        prismaMock.todo.findUnique.mockResolvedValue(todoData);
+      it('clears cache even when update returns void', async () => {
         prismaMock.todo.update.mockResolvedValue(undefined);
-        todosCacheServiceMock.invalidateAllForUser.mockResolvedValue(undefined);
 
-        await service.update('user-1', 'todo-1', { title: 'X' });
+        await service.update('todo-1', { title: 'X' });
 
-        expect(todosCacheServiceMock.invalidateAllForUser).toHaveBeenCalledWith('user-1', 'todo-1');
+        expect(cacheStorageMock.del).toHaveBeenCalledWith('todo:todo-1');
       });
     });
   });

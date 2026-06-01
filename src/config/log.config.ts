@@ -5,6 +5,7 @@ import { ConfigFactory } from '@nestjs/config/dist/interfaces';
 import { Transform } from 'class-transformer';
 import { IsArray, IsBoolean, IsEnum, IsString } from 'class-validator';
 
+import { parseEnvBoolean, parseEnvStringArray } from '../common/utils/parse-env.util';
 import { validateConfig } from '../common/utils/validate-config.util';
 import { LogLevelEnum } from './enums/log-level.enum';
 import { LogConfigInterface } from './interfaces/log-config.interface';
@@ -12,22 +13,14 @@ import { LogConfigInterface } from './interfaces/log-config.interface';
 class LogConfig {
   @IsArray()
   @IsString({ each: true })
-  @Transform(({ value }) => {
-    if (Array.isArray(value)) return value as string[];
-
-    if (typeof value === 'string') {
-      return JSON.parse(value) as string[];
-    }
-
-    return [];
-  })
+  @Transform(parseEnvStringArray)
   LOG_EXCLUDE_ENDPOINTS: string[] = [];
 
   @IsEnum(LogLevelEnum)
   LOG_LEVEL: Level = LogLevelEnum.info;
 
   @IsBoolean()
-  @Transform(({ value }) => value === 'true')
+  @Transform(parseEnvBoolean)
   LOG_PRETTY = true;
 }
 
