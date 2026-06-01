@@ -33,12 +33,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const res = ctx.getResponse<Response>();
     const traceId = req.traceId;
 
-    if (req.url.slice(1).indexOf(HEALTH_ENDPOINT) === 0 && exception instanceof HttpException) {
-      res.status(exception.getStatus()).json(exception.getResponse());
-
-      return;
-    }
-
     let error: BaseError<unknown> | null = null;
 
     // 1) Domain errors
@@ -59,6 +53,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     // 4) Unknown error (not show details to user)
     if (!error) {
       error = new InternalServerError();
+    }
+
+    // Need to skip Health endpoints
+    if (req.url.slice(1).indexOf(HEALTH_ENDPOINT) === 0 && exception instanceof HttpException) {
+      res.status(200).json(exception.getResponse());
+
+      return;
     }
 
     if (+error.status >= 400) {
