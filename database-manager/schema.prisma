@@ -25,8 +25,6 @@ model Todo {
   title       String
   description String?
   completed   Boolean  @default(false)
-  priority    TodoPriority @default(MEDIUM)
-  dueDate     DateTime?
   userId      String   @db.Uuid
   user        User     @relation(fields: [userId], references: [id])
   createdAt   DateTime @default(now())
@@ -34,12 +32,4 @@ model Todo {
 
   @@index([userId, createdAt])
   @@index([userId, completed, createdAt])
-  @@index([userId, priority, createdAt])
-  @@index([userId, dueDate, createdAt])
-}
-
-enum TodoPriority {
-  LOW
-  MEDIUM
-  HIGH
 }

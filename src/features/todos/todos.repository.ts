@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import type { Prisma } from '../../../database-manager/generated/client';
-
+import { Todo } from '../../../database-manager/generated/client';
 import { CreateTodoDto } from '../../api/todos/dtos/requests/create-todo.dto';
 import { UpdateTodoDto } from '../../api/todos/dtos/requests/update-todo.dto';
 import { PrismaService } from '../../modules/prisma/prisma.service';
@@ -14,13 +13,8 @@ import { TodoFilter, TodoPagination, TodoSort } from './types/todo.query';
 export class TodosRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(userId: string, dto: CreateTodoDto): Promise<TodoEntity> {
-    const todo = await this.prisma.todo.create({
-      data: { ...dto, userId },
-      include: { user: { select: { name: true } } },
-    });
-
-    return TodoMapper.toEntity(todo);
+  create(userId: string, dto: CreateTodoDto): Promise<Todo> {
+    return this.prisma.todo.create({ data: { ...dto, userId } });
   }
 
   async findAll(
@@ -35,12 +29,10 @@ export class TodosRepository {
           [sortBy]: order,
         }
       : {};
-
-    const where: Prisma.TodoWhereInput = { ...filter, userId };
+    const where = { ...filter, userId };
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.todo.findMany({
-        include: { user: { select: { name: true } } },
         orderBy: orderBy,
         skip: (offset - 1) * limit,
         take: limit,
@@ -58,10 +50,7 @@ export class TodosRepository {
   }
 
   async findOne(id: string): Promise<TodoEntity | void> {
-    const todo = await this.prisma.todo.findUnique({
-      include: { user: { select: { name: true } } },
-      where: { id },
-    });
+    const todo = await this.prisma.todo.findUnique({ where: { id } });
 
     if (todo) return TodoMapper.toEntity(todo);
   }
@@ -72,11 +61,7 @@ export class TodosRepository {
   }
 
   async update(id: string, dto: UpdateTodoDto): Promise<TodoEntity | void> {
-    const todo = await this.prisma.todo.update({
-      data: dto,
-      include: { user: { select: { name: true } } },
-      where: { id },
-    });
+    const todo = await this.prisma.todo.update({ data: dto, where: { id } });
 
     if (todo) return TodoMapper.toEntity(todo);
   }

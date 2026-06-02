@@ -45,8 +45,7 @@ export class TodosController {
   @ApiErrors(DtoValidationErrors, UserIsNotAuthorizedError, InternalServerError)
   @ApiPaginated(TodoResponseDto, {
     access: true,
-    description:
-      'Get all todo items for user with filtering support. Filter by completion status, priority (LOW/MEDIUM/HIGH), due date range (dueBefore, dueAfter), and search by title or description.',
+    description: 'Get all todo items for user',
     title: 'Find All Todos',
   })
   @Get()

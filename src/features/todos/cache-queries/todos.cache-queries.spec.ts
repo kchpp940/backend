@@ -1,14 +1,7 @@
-import type { TodosQueryParams } from './todos.cache-queries';
+import type { TodosQueryDto } from '../../../api/todos/dtos/queries/todos-query.dto';
 
 import { SortOrder, TodoSortField } from '../interfaces/queries.enum';
 import { TodosCacheKeys } from './todos.cache-queries';
-
-const createTestParams = (overrides: Partial<TodosQueryParams> = {}): TodosQueryParams => ({
-  filter: {},
-  pagination: { limit: 10, offset: 1 },
-  sort: { order: SortOrder.DESC, sortBy: TodoSortField.TITLE },
-  ...overrides,
-});
 
 describe('TodosCacheKeys', () => {
   describe('todo', () => {
@@ -26,47 +19,39 @@ describe('TodosCacheKeys', () => {
   describe('todos', () => {
     describe('positive cases', () => {
       it('returns a key prefixed with "todos:<userId>:"', () => {
-        const params = createTestParams();
-        const key = TodosCacheKeys.todos('user-1', params);
+        const key = TodosCacheKeys.todos('user-1', {});
 
         expect(key).toMatch(/^todos:user-1:/);
       });
 
-      it('encodes query params as base64', () => {
-        const params = createTestParams();
-        const key = TodosCacheKeys.todos('user-1', params);
+      it('encodes query as base64', () => {
+        const query: TodosQueryDto = { order: SortOrder.DESC, sortBy: TodoSortField.TITLE };
+        const key = TodosCacheKeys.todos('user-1', query);
         const encoded = key.split(':').at(-1)!;
         const decoded = JSON.parse(Buffer.from(encoded, 'base64').toString()) as Record<string, string>;
 
-        expect(decoded).toEqual(params);
+        expect(decoded).toEqual(query);
       });
 
-      it('returns different keys for different pagination', () => {
-        const params1 = createTestParams({ pagination: { limit: 10, offset: 1 } });
-        const params2 = createTestParams({ pagination: { limit: 20, offset: 1 } });
-
-        expect(TodosCacheKeys.todos('user-1', params1)).not.toBe(TodosCacheKeys.todos('user-1', params2));
-      });
-
-      it('returns different keys for different filters', () => {
-        const params1 = createTestParams({ filter: { completed: true } });
-        const params2 = createTestParams({ filter: { completed: false } });
-
-        expect(TodosCacheKeys.todos('user-1', params1)).not.toBe(TodosCacheKeys.todos('user-1', params2));
-      });
-
-      it('returns different keys for different users with same params', () => {
-        const params = createTestParams();
-        const key1 = TodosCacheKeys.todos('user-1', params);
-        const key2 = TodosCacheKeys.todos('user-2', params);
+      it('returns different keys for different queries', () => {
+        const key1 = TodosCacheKeys.todos('user-1', { limit: 10 });
+        const key2 = TodosCacheKeys.todos('user-1', { limit: 20 });
 
         expect(key1).not.toBe(key2);
       });
 
-      it('returns same key for identical userId and params', () => {
-        const params = createTestParams();
+      it('returns different keys for different users with same query', () => {
+        const query: TodosQueryDto = {};
+        const key1 = TodosCacheKeys.todos('user-1', query);
+        const key2 = TodosCacheKeys.todos('user-2', query);
 
-        expect(TodosCacheKeys.todos('user-1', params)).toBe(TodosCacheKeys.todos('user-1', params));
+        expect(key1).not.toBe(key2);
+      });
+
+      it('returns same key for identical userId and query', () => {
+        const query: TodosQueryDto = { limit: 5 };
+
+        expect(TodosCacheKeys.todos('user-1', query)).toBe(TodosCacheKeys.todos('user-1', query));
       });
     });
   });

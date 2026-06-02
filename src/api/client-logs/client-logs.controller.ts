@@ -5,6 +5,8 @@ import { ApiErrors } from '../../common/decorators/swagger.decorators';
 import { InternalServerError } from '../../error-handler/errors/common.errors';
 import { DtoValidationErrors } from '../../error-handler/errors/dto-validation.errors';
 import { ClientLogsService } from '../../features/client-logs/client-logs.service';
+import { BatchClientLogsResponseDto } from './dtos/batch-client-log-result.dto';
+import { BatchClientLogsDto } from './dtos/batch-client-logs.dto';
 import { MobileLogDto } from './dtos/mobile-log.dto';
 import { WebLogDto } from './dtos/web-log.dto';
 
@@ -15,6 +17,16 @@ import { WebLogDto } from './dtos/web-log.dto';
 })
 export class ClientLogsController {
   constructor(private readonly clientLogsService: ClientLogsService) {}
+
+  @ApiBody({ type: BatchClientLogsDto })
+  @ApiErrors(DtoValidationErrors, InternalServerError)
+  @ApiOperation({ summary: 'Batch ingest client logs (web and/or mobile)' })
+  @ApiResponse({ description: 'Batch processed', status: HttpStatus.OK, type: BatchClientLogsResponseDto })
+  @HttpCode(HttpStatus.OK)
+  @Post('batch')
+  postBatchLogs(@Body() dto: BatchClientLogsDto): BatchClientLogsResponseDto {
+    return this.clientLogsService.processBatchLogs(dto);
+  }
 
   @ApiBody({ type: MobileLogDto })
   @ApiErrors(DtoValidationErrors, InternalServerError)
