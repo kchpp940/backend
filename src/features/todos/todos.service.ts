@@ -4,11 +4,8 @@ import { TodosQueryDto } from '../../api/todos/dtos/queries/todos-query.dto';
 import { CreateTodoDto } from '../../api/todos/dtos/requests/create-todo.dto';
 import { UpdateTodoDto } from '../../api/todos/dtos/requests/update-todo.dto';
 import { TodoNotFoundError } from '../../error-handler/errors/todo.errors';
-import { PrismaService } from '../../modules/prisma/prisma.service';
 import { CacheStorage } from '../../modules/redis-manager/storages/cache.storage';
 import { PaginatedEntity } from '../../shared/entities/paginated.entity';
-import { AuditAction } from '../todo-audits/enums/audit-action.enum';
-import { TodoAuditsService } from '../todo-audits/todo-audits.service';
 import { TodosCacheKeys } from './cache-queries/todos.cache-queries';
 import { TodoEntity } from './entities/todo.entity';
 import { SortOrder, TodoSearchField, TodoSortField } from './interfaces/queries.enum';
@@ -19,28 +16,11 @@ import { TodoFilter, TodoPagination, TodoSort } from './types/todo.query';
 export class TodosService {
   constructor(
     private readonly todosRepository: TodosRepository,
-    private readonly todoAuditsService: TodoAuditsService,
     private readonly cacheStorage: CacheStorage,
-    private readonly prisma: PrismaService,
   ) {}
 
-  async create(userId: string, dto: CreateTodoDto, traceId: string): Promise<TodoEntity | void> {
-    const todo = await this.prisma.$transaction(async (tx) => {
-      const createdTodo = await this.todosRepository.create(userId, dto, tx);
-
-      await this.todoAuditsService.recordAudit(
-        this.todoAuditsService.buildAuditInput({
-          action: AuditAction.CREATE,
-          after: createdTodo,
-          operatorId: userId,
-          todoId: createdTodo.id,
-          traceId,
-        }),
-        tx,
-      );
-
-      return createdTodo;
-    });
+  async create(userId: string, dto: CreateTodoDto): Promise<TodoEntity | void> {
+    const todo = await this.todosRepository.create(userId, dto);
 
     await this.cacheStorage.delByPattern(TodosCacheKeys.todosByUser(userId));
 
@@ -111,48 +91,18 @@ export class TodosService {
     return { order: order ?? SortOrder.DESC, sortBy: sortBy };
   }
 
-  async remove(id: string, userId: string, traceId: string): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
-      const todo = await this.todosRepository.findOne(id, userId, tx);
+  async remove(id: string): Promise<void> {
+    const todo = await this.todosRepository.findOne(id);
 
-      if (!todo) throw new TodoNotFoundError(id);
+    if (!todo) throw new TodoNotFoundError(id);
 
-      await this.todoAuditsService.recordAudit(
-        this.todoAuditsService.buildAuditInput({
-          action: AuditAction.DELETE,
-          before: todo,
-          operatorId: userId,
-          todoId: id,
-          traceId,
-        }),
-        tx,
-      );
-
-      await this.todosRepository.remove(id, userId, tx);
-    });
+    await this.todosRepository.remove(id);
 
     await this.cacheStorage.del(TodosCacheKeys.todo(id));
   }
 
-  async update(id: string, dto: UpdateTodoDto, userId: string, traceId: string): Promise<TodoEntity | void> {
-    const todo = await this.prisma.$transaction(async (tx) => {
-      const before = await this.todosRepository.findOne(id, userId, tx);
-      const updatedTodo = await this.todosRepository.update(id, dto, userId, tx);
-
-      await this.todoAuditsService.recordAudit(
-        this.todoAuditsService.buildAuditInput({
-          action: AuditAction.UPDATE,
-          after: updatedTodo,
-          before: before,
-          operatorId: userId,
-          todoId: id,
-          traceId,
-        }),
-        tx,
-      );
-
-      return updatedTodo;
-    });
+  async update(id: string, dto: UpdateTodoDto): Promise<TodoEntity | void> {
+    const todo = await this.todosRepository.update(id, dto);
 
     await this.cacheStorage.del(TodosCacheKeys.todo(id));
 

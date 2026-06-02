@@ -33,18 +33,3 @@ model Todo {
   @@index([userId, createdAt])
   @@index([userId, completed, createdAt])
 }
-
-model TodoAudit {
-  id         String   @id @default(uuid()) @db.Uuid()
-  action     String
-  todoId     String   @db.Uuid
-  operatorId String   @db.Uuid
-  before     Json?
-  after      Json?
-  traceId    String   @default("")
-  createdAt  DateTime @default(now())
-
-  @@index([todoId, createdAt])
-  @@index([operatorId, createdAt])
-  @@index([action, createdAt])
-}

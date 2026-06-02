@@ -9,9 +9,15 @@ import { MetricsService } from '../../modules/metrics/metrics.service';
 export class MetricsController {
   constructor(private readonly metricsService: MetricsService) {}
 
+  @Get()
+  @Header('Content-Type', 'text/plain; version=0.0.4')
+  getAllMetrics(): Promise<string> {
+    return this.metricsService.getAllMetrics();
+  }
+
   @Get('database')
   @Header('Content-Type', 'text/plain; version=0.0.4')
-  metrics(): Promise<string> {
+  getDatabaseMetrics(): Promise<string> {
     return this.metricsService.getDatabaseMetrics();
   }
 }

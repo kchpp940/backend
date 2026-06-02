@@ -7,11 +7,6 @@ import { PrismaClient } from '../../../database-manager/generated/client';
 import { databaseConfig } from '../../config/database.config';
 import { LoggerService } from '../../logger/logger.service';
 
-export type PrismaTransactionClient = Omit<
-  PrismaClient,
-  '$connect' | '$disconnect' | '$extends' | '$on' | '$transaction' | '$use'
->;
-
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit {
   constructor(

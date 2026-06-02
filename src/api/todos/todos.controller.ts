@@ -12,7 +12,6 @@ import { DtoValidationErrors } from '../../error-handler/errors/dto-validation.e
 import { TodoNotFoundError } from '../../error-handler/errors/todo.errors';
 import { UserIsNotAuthorizedError } from '../../error-handler/errors/user.errors';
 import { TodosService } from '../../features/todos/todos.service';
-import { RequestContext } from '../../logger/context/request-context';
 import { TodosQueryDto } from './dtos/queries/todos-query.dto';
 import { CreateTodoDto } from './dtos/requests/create-todo.dto';
 import { UpdateTodoDto } from './dtos/requests/update-todo.dto';
@@ -36,7 +35,7 @@ export class TodosController {
   @Post()
   @UseGuards(AuthGuard)
   async create(@Body() dto: CreateTodoDto, @User() { userId }: UserInterface): Promise<TodoResponseDto> {
-    const created = await this.todoService.create(userId, dto, RequestContext.getTraceId());
+    const created = await this.todoService.create(userId, dto);
 
     return plainToInstance(TodoResponseDto, created, {
       excludeExtraneousValues: true,
@@ -83,8 +82,8 @@ export class TodosController {
   @ApiErrors(TodoNotFoundError, UserIsNotAuthorizedError, InternalServerError)
   @Delete(':id')
   @UseGuards(AuthGuard)
-  async remove(@Param('id') id: string, @User() { userId }: UserInterface): Promise<void> {
-    await this.todoService.remove(id, userId, RequestContext.getTraceId());
+  async remove(@Param('id') id: string): Promise<void> {
+    await this.todoService.remove(id);
   }
 
   @ApiErrors(DtoValidationErrors, TodoNotFoundError, UserIsNotAuthorizedError, InternalServerError)
@@ -95,12 +94,8 @@ export class TodosController {
   })
   @Patch(':id')
   @UseGuards(AuthGuard)
-  async update(
-    @Param('id') id: string,
-    @Body() dto: UpdateTodoDto,
-    @User() { userId }: UserInterface,
-  ): Promise<TodoResponseDto> {
-    const todo = await this.todoService.update(id, dto, userId, RequestContext.getTraceId());
+  async update(@Param('id') id: string, @Body() dto: UpdateTodoDto): Promise<TodoResponseDto> {
+    const todo = await this.todoService.update(id, dto);
 
     return plainToInstance(TodoResponseDto, todo, {
       excludeExtraneousValues: true,

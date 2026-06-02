@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { Todo } from '../../../database-manager/generated/client';
 import { CreateTodoDto } from '../../api/todos/dtos/requests/create-todo.dto';
 import { UpdateTodoDto } from '../../api/todos/dtos/requests/update-todo.dto';
-import { PrismaService, PrismaTransactionClient } from '../../modules/prisma/prisma.service';
+import { PrismaService } from '../../modules/prisma/prisma.service';
 import { PaginatedEntity } from '../../shared/entities/paginated.entity';
 import { TodoEntity } from './entities/todo.entity';
 import { TodoMapper } from './mappers/todo.mapper';
@@ -13,10 +13,8 @@ import { TodoFilter, TodoPagination, TodoSort } from './types/todo.query';
 export class TodosRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(userId: string, dto: CreateTodoDto, tx?: PrismaTransactionClient): Promise<Todo> {
-    const client = this.getClient(tx);
-
-    return client.todo.create({ data: { ...dto, userId } });
+  create(userId: string, dto: CreateTodoDto): Promise<Todo> {
+    return this.prisma.todo.create({ data: { ...dto, userId } });
   }
 
   async findAll(
@@ -51,33 +49,20 @@ export class TodosRepository {
     });
   }
 
-  async findOne(id: string, userId?: string, tx?: PrismaTransactionClient): Promise<TodoEntity | void> {
-    const client = this.getClient(tx);
-    const where = userId ? { id, userId } : { id };
-    const todo = userId ? await client.todo.findFirst({ where }) : await client.todo.findUnique({ where });
+  async findOne(id: string): Promise<TodoEntity | void> {
+    const todo = await this.prisma.todo.findUnique({ where: { id } });
 
     if (todo) return TodoMapper.toEntity(todo);
   }
 
-  async remove(id: string, userId: string, tx?: PrismaTransactionClient): Promise<void> {
-    const client = this.getClient(tx);
-    await this.findOne(id, userId, tx);
-    await client.todo.delete({ where: { id, userId } });
+  async remove(id: string): Promise<void> {
+    await this.findOne(id);
+    await this.prisma.todo.delete({ where: { id } });
   }
 
-  async update(
-    id: string,
-    dto: UpdateTodoDto,
-    userId: string,
-    tx?: PrismaTransactionClient,
-  ): Promise<TodoEntity | void> {
-    const client = this.getClient(tx);
-    const todo = await client.todo.update({ data: dto, where: { id, userId } });
+  async update(id: string, dto: UpdateTodoDto): Promise<TodoEntity | void> {
+    const todo = await this.prisma.todo.update({ data: dto, where: { id } });
 
     if (todo) return TodoMapper.toEntity(todo);
-  }
-
-  private getClient(tx?: PrismaTransactionClient): PrismaService | PrismaTransactionClient {
-    return tx ?? this.prisma;
   }
 }

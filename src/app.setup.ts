@@ -26,6 +26,7 @@ import { loggingMiddleware } from './logger/middlewares/logging.middleware';
 import { traceIdMiddleware } from './logger/middlewares/trace-id.middleware';
 import { EnvironmentService } from './modules/environment/environment.service';
 import { HttpMetricsInterceptor } from './modules/metrics/interceptors/http-metrics.interceptor';
+import { MetricsService } from './modules/metrics/metrics.service';
 import { sentryContextMiddleware } from './modules/sentry/middlewares/sentry-context.middleware';
 import { SentryInterceptor } from './modules/sentry/sentry.interceptor';
 
@@ -119,7 +120,7 @@ export const appSetup = (app: INestApplication): void => {
         `/${HEALTH_ENDPOINT}/deps`,
       ],
     }),
-    new HttpMetricsInterceptor(),
+    new HttpMetricsInterceptor(app.get(MetricsService)),
   );
 
   // Filters

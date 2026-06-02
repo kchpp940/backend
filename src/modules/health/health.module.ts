@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { TerminusModule } from '@nestjs/terminus';
 
 import { HealthController } from '../../api/health/health.controller';
+import { MetricsModule } from '../metrics/metrics.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RedisManagerModule } from '../redis-manager/redis-manager.module';
 import { ShutdownModule } from '../shutdown/shutdown.module';
@@ -14,6 +15,7 @@ import { HealthUpdateMiddleware } from './middlewares/health-update.middleware';
   controllers: [HealthController],
   exports: [],
   imports: [
+    MetricsModule,
     PrismaModule,
     TerminusModule.forRoot({
       logger: false,
