@@ -3,13 +3,12 @@ import { ConfigFactory } from '@nestjs/config/dist/interfaces';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsNumber, IsString } from 'class-validator';
 
-import { parseEnvBoolean } from '../common/utils/parse-env.util';
 import { validateConfig } from '../common/utils/validate-config.util';
 import { RedisConfigInterface } from './interfaces/redis-config.interface';
 
 class RedisConfig {
   @IsBoolean()
-  @Transform(parseEnvBoolean)
+  @Transform(({ value }) => value === 'true')
   REDIS_ENABLED = true;
 
   @IsString()

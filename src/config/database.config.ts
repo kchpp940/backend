@@ -5,29 +5,25 @@ import { IsArray, IsBoolean, IsIn, IsNumber, IsString } from 'class-validator';
 
 import { getDatabaseUrl } from '../../database-manager/generate-url';
 import { LogLevel } from '../../database-manager/generated/internal/prismaNamespace';
-import { parseEnvBoolean, parseEnvTypedArray } from '../common/utils/parse-env.util';
 import { validateConfig } from '../common/utils/validate-config.util';
 import { DatabaseConfigInterface } from './interfaces/database-config.interface';
 
-const validLogLevels: readonly LogLevel[] = ['info', 'query', 'warn', 'error'] as const;
-
 class DatabaseConfig {
   @IsBoolean()
-  @Transform(parseEnvBoolean)
+  @Transform(({ value }) => value === 'true')
   DATABASE_FAIL_FAST = true;
 
   @IsArray()
-  @IsIn(validLogLevels, { each: true })
-  @Transform((params) =>
-    parseEnvTypedArray<LogLevel>(
-      params,
-      (item): item is LogLevel => typeof item === 'string' && validLogLevels.includes(item as LogLevel),
-      {
-        formatExample: '["query", "error", "info", "warn"]',
-        itemType: 'LogLevel',
-      },
-    ),
-  )
+  @IsIn(['info', 'query', 'warn', 'error'], { each: true })
+  @Transform(({ value }) => {
+    if (Array.isArray(value)) return value as LogLevel[];
+
+    if (typeof value === 'string') {
+      return JSON.parse(value) as LogLevel[];
+    }
+
+    return [];
+  })
   @Type(() => String)
   DATABASE_LOG_LEVELS: LogLevel[] = [];
 

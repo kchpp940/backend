@@ -6,11 +6,11 @@ import { UpdateTodoDto } from '../../api/todos/dtos/requests/update-todo.dto';
 import { TodoNotFoundError } from '../../error-handler/errors/todo.errors';
 import { CacheStorage } from '../../modules/redis-manager/storages/cache.storage';
 import { PaginatedEntity } from '../../shared/entities/paginated.entity';
-import { TodosCacheKeys } from './cache-queries/todos.cache-queries';
+import { TodosCacheKeys, type TodosQueryParams } from './cache-queries/todos.cache-queries';
 import { TodoEntity } from './entities/todo.entity';
 import { SortOrder, TodoSearchField, TodoSortField } from './interfaces/queries.enum';
 import { TodosRepository } from './todos.repository';
-import { TodoFilter, TodoPagination, TodoSort } from './types/todo.query';
+import { TodoFilter, TodoPagination, TodoSearchableField, TodoSort } from './types/todo.query';
 
 @Injectable()
 export class TodosService {
@@ -28,17 +28,18 @@ export class TodosService {
   }
 
   async findAll(userId: string, queryDto: TodosQueryDto): Promise<PaginatedEntity<TodoEntity>> {
-    const key = TodosCacheKeys.todos(userId, queryDto);
+    const filter = this.getFilterQuery(queryDto);
+    const sort = this.getSortQuery(queryDto);
+    const pagination = this.getPaginationQuery(queryDto);
+
+    const queryParams: TodosQueryParams = { filter, pagination, sort };
+    const key = TodosCacheKeys.todos(userId, queryParams);
 
     const cached = await this.cacheStorage.get<PaginatedEntity<TodoEntity>>(key);
 
     if (cached) return cached;
 
-    const sortQuery = this.getSortQuery(queryDto);
-    const filterQuery = this.getFilterQuery(queryDto);
-    const paginationQuery = this.getPaginationQuery(queryDto);
-
-    const result = await this.todosRepository.findAll(userId, filterQuery, sortQuery, paginationQuery);
+    const result = await this.todosRepository.findAll(userId, filter, sort, pagination);
 
     await this.cacheStorage.set(key, result, 30);
 
@@ -61,18 +62,39 @@ export class TodosService {
     return todo;
   }
 
-  getFilterQuery({ completed, search, searchField = TodoSearchField.TITLE }: TodosQueryDto): TodoFilter {
-    return {
-      ...(completed !== undefined && {
-        completed,
-      }),
-      ...(search && {
-        [searchField]: {
-          contains: search,
-          mode: 'insensitive',
-        },
-      }),
-    };
+  getFilterQuery(query: TodosQueryDto): TodoFilter {
+    const { completed, dueAfter, dueBefore, priority, search, searchField = TodoSearchField.TITLE } = query;
+
+    const filter: TodoFilter = {};
+
+    if (completed !== undefined) {
+      filter.completed = completed;
+    }
+
+    if (priority) {
+      filter.priority = priority;
+    }
+
+    const hasDueDateFilter = dueBefore || dueAfter;
+    if (hasDueDateFilter) {
+      filter.dueDate = {};
+      if (dueBefore) {
+        filter.dueDate.lte = dueBefore;
+      }
+      if (dueAfter) {
+        filter.dueDate.gte = dueAfter;
+      }
+    }
+
+    if (search && searchField) {
+      const field = searchField as TodoSearchableField;
+      filter[field] = {
+        contains: search,
+        mode: 'insensitive',
+      };
+    }
+
+    return filter;
   }
 
   getPaginationQuery({ limit, offset }: TodosQueryDto): TodoPagination {

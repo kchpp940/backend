@@ -3,7 +3,6 @@ import { ConfigFactory } from '@nestjs/config/dist/interfaces';
 import { Transform } from 'class-transformer';
 import { IsArray, IsBoolean, IsString } from 'class-validator';
 
-import { parseEnvBoolean, parseEnvStringArray } from '../common/utils/parse-env.util';
 import { validateConfig } from '../common/utils/validate-config.util';
 import { SentryConfigInterface } from './interfaces/sentry-config.interface';
 
@@ -12,12 +11,20 @@ class SentryConfig {
   SENTRY_DSN: string;
 
   @IsBoolean()
-  @Transform(parseEnvBoolean)
+  @Transform(({ value }) => value === 'true')
   SENTRY_ENABLED = true;
 
   @IsArray()
   @IsString({ each: true })
-  @Transform(parseEnvStringArray)
+  @Transform(({ value }) => {
+    if (Array.isArray(value)) return value as string[];
+
+    if (typeof value === 'string') {
+      return JSON.parse(value) as string[];
+    }
+
+    return [];
+  })
   SENTRY_IGNORED_ERRORS: string[] = [];
 }
 
