@@ -15,6 +15,7 @@ jest.mock('prom-client', () => {
   };
 });
 
+import { RequestTelemetryContext } from '../../../logger/context/request-telemetry.context';
 import { HttpMetricsInterceptor } from './http-metrics.interceptor';
 
 const makeContext = (method = 'GET', route = '/api', statusCode = 200): ExecutionContext =>
@@ -24,6 +25,8 @@ const makeContext = (method = 'GET', route = '/api', statusCode = 200): Executio
       getResponse: jest.fn().mockReturnValue({ statusCode }),
     }),
   }) as unknown as ExecutionContext;
+
+const runInContext = <T>(callback: () => T): T => RequestTelemetryContext.run('test-trace', callback);
 
 describe('HttpMetricsInterceptor', () => {
   let interceptor: HttpMetricsInterceptor;
@@ -36,13 +39,15 @@ describe('HttpMetricsInterceptor', () => {
     it('intercept does not throw on success', (done) => {
       const handler: CallHandler = { handle: jest.fn().mockReturnValue(of({ id: 1 })) };
 
-      interceptor.intercept(makeContext(), handler).subscribe({
-        complete: () => {
-          done();
-        },
-        error: () => {
-          done.fail();
-        },
+      runInContext(() => {
+        interceptor.intercept(makeContext(), handler).subscribe({
+          complete: () => {
+            done();
+          },
+          error: () => {
+            done.fail();
+          },
+        });
       });
     });
 
@@ -50,20 +55,24 @@ describe('HttpMetricsInterceptor', () => {
       const error = Object.assign(new Error('test'), { status: 400 });
       const handler: CallHandler = { handle: jest.fn().mockReturnValue(throwError(() => error)) };
 
-      interceptor.intercept(makeContext(), handler).subscribe({
-        error: () => {
-          done();
-        },
+      runInContext(() => {
+        interceptor.intercept(makeContext(), handler).subscribe({
+          error: () => {
+            done();
+          },
+        });
       });
     });
 
     it('uses 500 as fallback status when error has no status property', (done) => {
       const handler: CallHandler = { handle: jest.fn().mockReturnValue(throwError(() => new Error('no status'))) };
 
-      interceptor.intercept(makeContext(), handler).subscribe({
-        error: () => {
-          done();
-        },
+      runInContext(() => {
+        interceptor.intercept(makeContext(), handler).subscribe({
+          error: () => {
+            done();
+          },
+        });
       });
     });
 
@@ -77,13 +86,15 @@ describe('HttpMetricsInterceptor', () => {
 
       const handler: CallHandler = { handle: jest.fn().mockReturnValue(of({})) };
 
-      interceptor.intercept(ctx, handler).subscribe({
-        complete: () => {
-          done();
-        },
-        error: () => {
-          done.fail();
-        },
+      runInContext(() => {
+        interceptor.intercept(ctx, handler).subscribe({
+          complete: () => {
+            done();
+          },
+          error: () => {
+            done.fail();
+          },
+        });
       });
     });
   });

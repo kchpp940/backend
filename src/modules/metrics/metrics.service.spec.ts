@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 
 jest.mock('prom-client', () => ({
+  Counter: jest.fn().mockImplementation(() => ({ inc: jest.fn(), labels: jest.fn().mockReturnThis() })),
   Gauge: jest.fn().mockImplementation(() => ({ set: jest.fn() })),
   register: { getSingleMetricAsString: jest.fn().mockResolvedValue('metrics_output') },
 }));

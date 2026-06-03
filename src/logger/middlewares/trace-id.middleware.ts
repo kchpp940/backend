@@ -3,7 +3,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 
 import { capitalizeFirstLetter } from '../../common/utils/strings';
-import { RequestContext } from '../context/request-context';
+import { RequestTelemetryContext } from '../context/request-telemetry.context';
 import { traceIdHeader } from '../headers/trace-id.header';
 
 export const traceIdMiddleware = (req: Request, res: Response, next: NextFunction): void => {
@@ -12,5 +12,8 @@ export const traceIdMiddleware = (req: Request, res: Response, next: NextFunctio
   const capitalizedHeader = traceIdHeader.split('-').map(capitalizeFirstLetter).join('-');
   res.setHeader(capitalizedHeader, traceId);
 
-  RequestContext.run(traceId, () => next());
+  RequestTelemetryContext.run(traceId, () => {
+    RequestTelemetryContext.populateFromRequest(req);
+    next();
+  });
 };

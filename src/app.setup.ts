@@ -18,7 +18,9 @@ import type { sentryConfig } from './config/sentry.config';
 import { AppModule } from './app.module';
 import { UnifiedResponseInterceptor } from './common/interceptors/unified-response.interceptor';
 import { HEALTH_ENDPOINT, METRICS_ENDPOINT } from './constants/url.contants';
-import { DtoValidationError, GlobalExceptionFilter, parseValidationErrors } from './error-handler';
+import { DtoValidationErrors } from './error-handler/errors/dto-validation.errors';
+import { GlobalExceptionFilter } from './error-handler/filters/global-exception.filter';
+import { parseValidationErrors } from './error-handler/parsers/validation-error.parser';
 import { LoggerService } from './logger/logger.service';
 import { loggingMiddleware } from './logger/middlewares/logging.middleware';
 import { traceIdMiddleware } from './logger/middlewares/trace-id.middleware';
@@ -40,9 +42,17 @@ export const appSetup = (app: INestApplication): void => {
 
   const environmentService = app.get(EnvironmentService);
 
-  // Context (express middleware)
-  app.use(httpContext.middleware);
-
+  // ---------------------------------------------------------------------------
+  // Middleware execution order is CRITICAL for telemetry context propagation
+  // ---------------------------------------------------------------------------
+  // 1. traceIdMiddleware - Creates AsyncLocalStorage context for each request.
+  //    This MUST be first so all subsequent middlewares/interceptors can access
+  //    telemetry data via RequestTelemetryContext. Missing this first causes
+  //    telemetry_degradation_total counter to increment.
+  // 2. sentryContextMiddleware - Populates Sentry tags from telemetry context
+  // 3. loggingMiddleware - Logs request using telemetry context
+  // 4. httpContext.middleware - express-http-context (legacy, avoid for new code)
+  // ---------------------------------------------------------------------------
   app.use(traceIdMiddleware);
 
   if (configSentry.sentryEnabled) {
@@ -50,6 +60,9 @@ export const appSetup = (app: INestApplication): void => {
   }
 
   app.use(loggingMiddleware(configLog, logger));
+
+  // Context (express middleware) - Legacy, prefer RequestTelemetryContext
+  app.use(httpContext.middleware);
 
   // Security & transport middlewares
   if (environmentService.isProduction()) {
@@ -94,7 +107,7 @@ export const appSetup = (app: INestApplication): void => {
   app.useGlobalPipes(
     new ValidationPipe({
       exceptionFactory: (errors: ValidationError[] = []): void => {
-        throw new DtoValidationError(parseValidationErrors(errors));
+        throw new DtoValidationErrors(parseValidationErrors(errors));
       },
       forbidNonWhitelisted: true,
       stopAtFirstError: true,

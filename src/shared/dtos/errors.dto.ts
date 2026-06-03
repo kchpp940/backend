@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { ErrorCodes } from '../../error-handler';
+import { ErrorCodes } from '../../error-handler/constants/error.codes';
 
 export class ApiErrorDto {
   @ApiProperty({ enum: ErrorCodes })

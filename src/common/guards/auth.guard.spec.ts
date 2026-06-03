@@ -2,7 +2,7 @@ import type { ExecutionContext } from '@nestjs/common';
 
 import { Reflector } from '@nestjs/core';
 
-import { UserIsNotAuthorizedError } from '../../error-handler';
+import { UserIsNotAuthorizedError } from '../../error-handler/errors/user.errors';
 import { AuthGuard } from './auth.guard';
 
 const makeContext = (auth?: string, isPublic = false): ExecutionContext => {

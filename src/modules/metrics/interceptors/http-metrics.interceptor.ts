@@ -4,7 +4,7 @@ import { Counter, Gauge, Histogram } from 'prom-client';
 import { Observable } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 
-import { BaseError } from '../../../error-handler';
+import { RequestTelemetryContext } from '../../../logger/context/request-telemetry.context';
 
 @Injectable()
 export class HttpMetricsInterceptor implements NestInterceptor {
@@ -16,13 +16,13 @@ export class HttpMetricsInterceptor implements NestInterceptor {
   private readonly httpRequestDuration = new Histogram({
     buckets: [0.05, 0.1, 0.2, 0.5, 1, 2, 5],
     help: 'HTTP request duration in seconds',
-    labelNames: ['method', 'route', 'status'],
+    labelNames: ['method', 'route', 'status', 'errorCategory'],
     name: 'http_request_duration_seconds',
   });
 
   private readonly httpRequestsTotal = new Counter({
     help: 'Total HTTP requests',
-    labelNames: ['method', 'route', 'status'],
+    labelNames: ['method', 'route', 'status', 'errorCategory'],
     name: 'http_requests_total',
   });
 
@@ -31,28 +31,33 @@ export class HttpMetricsInterceptor implements NestInterceptor {
     const req = httpContext.getRequest<Request>();
     const res = httpContext.getResponse<Response>();
 
-    const method = req.method;
-
-    const r = req.route as { path: string };
-    const route = r.path || req.baseUrl || 'unknown';
+    RequestTelemetryContext.populateFromRequest(req);
 
     const start = process.hrtime();
     this.httpInFlight.inc();
 
     return next.handle().pipe(
-      catchError((err: BaseError<unknown>) => {
-        const status = err?.status || 500;
-        this.recordMetrics(method, route, status, start);
+      catchError((err: Error) => {
+        RequestTelemetryContext.populateFromError(err);
+        const telemetry = RequestTelemetryContext.getRequiredAll();
+        this.recordMetrics(telemetry.method, telemetry.route, telemetry.status, telemetry.errorCategory, start);
         throw err;
       }),
       finalize(() => {
-        const status = res.statusCode;
-        this.recordMetrics(method, route, status, start);
+        RequestTelemetryContext.populateFromResponse(res);
+        const telemetry = RequestTelemetryContext.getRequiredAll();
+        this.recordMetrics(telemetry.method, telemetry.route, telemetry.status, telemetry.errorCategory, start);
       }),
     );
   }
 
-  private recordMetrics(method: string, route: string, status: number, start: [number, number]): void {
+  private recordMetrics(
+    method: string,
+    route: string,
+    status: number,
+    errorCategory: string,
+    start: [number, number],
+  ): void {
     this.httpInFlight.dec();
 
     const diff = process.hrtime(start);
@@ -60,7 +65,7 @@ export class HttpMetricsInterceptor implements NestInterceptor {
 
     const statusStr = status.toString();
 
-    this.httpRequestsTotal.labels(method, route, statusStr).inc();
-    this.httpRequestDuration.labels(method, route, statusStr).observe(duration);
+    this.httpRequestsTotal.labels(method, route, statusStr, errorCategory).inc();
+    this.httpRequestDuration.labels(method, route, statusStr, errorCategory).observe(duration);
   }
 }

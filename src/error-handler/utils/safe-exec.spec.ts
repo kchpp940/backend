@@ -1,4 +1,7 @@
-import { BaseError, ErrorCategory, ErrorCodes, safeExec } from '../../error-handler';
+import { ErrorCategory } from '../constants/error-category';
+import { ErrorCodes } from '../constants/error.codes';
+import { BaseError } from '../errors/_base.error';
+import { safeExec } from './safe-exec';
 
 describe('safeExec', () => {
   describe('negative cases', () => {

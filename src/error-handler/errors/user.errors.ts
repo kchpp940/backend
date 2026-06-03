@@ -1,11 +1,21 @@
 import { HttpStatus } from '@nestjs/common';
 
-import { ErrorCategory, ErrorCodes } from './definitions';
-import { createErrorClass } from './factory';
+import { ErrorCategory } from '../constants/error-category';
+import { ErrorCodes } from '../constants/error.codes';
+import { BaseError } from './_base.error';
 
-export const UserIsNotAuthorizedError = createErrorClass<void>({
-  category: ErrorCategory.DOMAIN,
-  code: ErrorCodes.USER_IS_NOT_AUTHORIZED,
-  defaultMessage: 'User is not authorized',
-  status: HttpStatus.UNAUTHORIZED,
-});
+export class UserIsNotAuthorizedError extends BaseError<void> {
+  static code = ErrorCodes.USER_IS_NOT_AUTHORIZED;
+  static domain = ErrorCategory.DOMAIN;
+  static message = 'User is not authorized';
+  static status = HttpStatus.UNAUTHORIZED;
+
+  constructor() {
+    super(
+      UserIsNotAuthorizedError.message,
+      UserIsNotAuthorizedError.code,
+      UserIsNotAuthorizedError.domain,
+      UserIsNotAuthorizedError.status,
+    );
+  }
+}

@@ -1,25 +1,32 @@
 import { HttpStatus } from '@nestjs/common';
 
-import { ErrorCategory, ErrorCodes } from './definitions';
-import { createErrorClass } from './factory';
+import { ErrorCategory } from '../constants/error-category';
+import { ErrorCodes } from '../constants/error.codes';
+import { BaseError } from './_base.error';
 
-export const ForbiddenError = createErrorClass<void>({
-  category: ErrorCategory.DOMAIN,
-  code: ErrorCodes.FORBIDDEN,
-  defaultMessage: 'Forbidden',
-  status: HttpStatus.FORBIDDEN,
-});
+export class ForbiddenError extends BaseError<void> {
+  static code = ErrorCodes.FORBIDDEN;
+  static domain = ErrorCategory.DOMAIN;
+  static message = 'Forbidden';
+  static status = HttpStatus.FORBIDDEN;
 
-export const InfraFailureError = createErrorClass<unknown>({
-  category: ErrorCategory.INFRASTRUCTURE,
-  code: ErrorCodes.INFRA_FAILURE,
-  defaultMessage: 'Infrastructure Error',
-  status: HttpStatus.INTERNAL_SERVER_ERROR,
-});
+  constructor() {
+    super(ForbiddenError.message, ForbiddenError.code, ForbiddenError.domain, ForbiddenError.status);
+  }
+}
 
-export const InternalServerError = createErrorClass<void>({
-  category: ErrorCategory.APPLICATION,
-  code: ErrorCodes.INTERNAL_ERROR,
-  defaultMessage: 'Internal Server Error',
-  status: HttpStatus.INTERNAL_SERVER_ERROR,
-});
+export class InternalServerError extends BaseError<void> {
+  static code = ErrorCodes.INTERNAL_ERROR;
+  static domain = ErrorCategory.APPLICATION;
+  static message = 'Internal Server Error';
+  static status = HttpStatus.INTERNAL_SERVER_ERROR;
+
+  constructor() {
+    super(
+      InternalServerError.message,
+      InternalServerError.code,
+      InternalServerError.domain,
+      InternalServerError.status,
+    );
+  }
+}

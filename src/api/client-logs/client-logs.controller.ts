@@ -2,7 +2,8 @@ import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { ApiErrors } from '../../common/decorators/swagger.decorators';
-import { DtoValidationError, InternalServerError } from '../../error-handler';
+import { InternalServerError } from '../../error-handler/errors/common.errors';
+import { DtoValidationErrors } from '../../error-handler/errors/dto-validation.errors';
 import { ClientLogsService } from '../../features/client-logs/client-logs.service';
 import { MobileLogDto } from './dtos/mobile-log.dto';
 import { WebLogDto } from './dtos/web-log.dto';
@@ -16,7 +17,7 @@ export class ClientLogsController {
   constructor(private readonly clientLogsService: ClientLogsService) {}
 
   @ApiBody({ type: MobileLogDto })
-  @ApiErrors(DtoValidationError, InternalServerError)
+  @ApiErrors(DtoValidationErrors, InternalServerError)
   @ApiOperation({ summary: 'Ingest mobile client logs' })
   @ApiResponse({ description: 'Logs accepted', status: HttpStatus.NO_CONTENT })
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -26,7 +27,7 @@ export class ClientLogsController {
   }
 
   @ApiBody({ type: WebLogDto })
-  @ApiErrors(DtoValidationError, InternalServerError)
+  @ApiErrors(DtoValidationErrors, InternalServerError)
   @ApiOperation({ summary: 'Ingest web client logs' })
   @ApiResponse({ description: 'Logs accepted', status: HttpStatus.NO_CONTENT })
   @HttpCode(HttpStatus.NO_CONTENT)

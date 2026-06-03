@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 
-import { UserIsNotAuthorizedError } from '../../error-handler';
+import { UserIsNotAuthorizedError } from '../../error-handler/errors/user.errors';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
 @Injectable()

@@ -1,16 +1,16 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
+import { RequestTelemetryContext } from './request-telemetry.context';
 
+/**
+ * @deprecated Use RequestTelemetryContext instead for unified telemetry data
+ * This class is kept for backward compatibility
+ */
 class RequestContext {
-  private static storage = new AsyncLocalStorage<Map<string, string>>();
-
   static getTraceId(): string {
-    return this.storage.getStore()?.get('x-trace-id') || '';
+    return RequestTelemetryContext.getTraceId();
   }
 
   static run(traceId: string, callback: () => void): void {
-    const store = new Map<string, string>();
-    store.set('x-trace-id', traceId);
-    this.storage.run(store, callback);
+    RequestTelemetryContext.run(traceId, callback);
   }
 }
 

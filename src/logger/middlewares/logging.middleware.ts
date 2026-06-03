@@ -4,6 +4,7 @@ import type { LogConfigInterface } from '../../config/interfaces/log-config.inte
 import type { LoggerService } from '../logger.service';
 
 import { HEALTH_ENDPOINT, METRICS_ENDPOINT } from '../../constants/url.contants';
+import { RequestTelemetryContext } from '../context/request-telemetry.context';
 
 export const loggingMiddleware =
   (config: LogConfigInterface, loggerService: LoggerService) =>
@@ -14,12 +15,14 @@ export const loggingMiddleware =
       return;
     }
 
+    const telemetry = RequestTelemetryContext.getRequiredAll();
+
     loggerService.log({
       ctx: 'loggingMiddleware',
       details: JSON.stringify(req.body),
-      method: req.method,
+      method: telemetry.method,
       msg: `Request income`,
-      path: req.url,
+      path: telemetry.path,
     });
 
     next();

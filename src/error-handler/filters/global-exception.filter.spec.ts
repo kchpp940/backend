@@ -17,7 +17,9 @@ import * as Sentry from '@sentry/node';
 
 import type { LoggerService } from '../../logger/logger.service';
 
-import { InternalServerError, TodoNotFoundError } from '../errors';
+import { RequestTelemetryContext } from '../../logger/context/request-telemetry.context';
+import { InternalServerError } from '../errors/common.errors';
+import { TodoNotFoundError } from '../errors/todo.errors';
 import { GlobalExceptionFilter } from './global-exception.filter';
 
 interface MakeHostResult {
@@ -62,6 +64,8 @@ const makeHost = (
   };
 };
 
+const runInContext = <T>(callback: () => T): T => RequestTelemetryContext.run('test-trace', callback);
+
 describe('GlobalExceptionFilter', () => {
   let filter: GlobalExceptionFilter;
   let logger: { error: jest.Mock };
@@ -78,7 +82,7 @@ describe('GlobalExceptionFilter', () => {
     it('handles unknown errors as InternalServerError', () => {
       const { host, res } = makeHost({ route: { path: '/api/todos' } });
 
-      filter.catch('unknown error', host);
+      runInContext(() => filter.catch('unknown error', host));
 
       expect(res.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
     });
@@ -86,7 +90,7 @@ describe('GlobalExceptionFilter', () => {
     it('handles HttpException as InternalServerError', () => {
       const { host, res } = makeHost({ route: { path: '/api' } });
 
-      filter.catch(new HttpException('Forbidden', HttpStatus.FORBIDDEN), host);
+      runInContext(() => filter.catch(new HttpException('Forbidden', HttpStatus.FORBIDDEN), host));
 
       expect(res.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
     });
@@ -94,7 +98,7 @@ describe('GlobalExceptionFilter', () => {
     it('skips error response for health endpoints and returns original HttpException response', () => {
       const { host, jsonMock, res } = makeHost({ url: '/health/check' });
 
-      filter.catch(new HttpException({ status: 'ok' }, HttpStatus.OK), host);
+      runInContext(() => filter.catch(new HttpException({ status: 'ok' }, HttpStatus.OK), host));
 
       expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
       expect(jsonMock).toHaveBeenCalledWith({ status: 'ok' });
@@ -104,9 +108,9 @@ describe('GlobalExceptionFilter', () => {
   describe('positive cases', () => {
     it('handles BaseError directly', () => {
       const { host, res } = makeHost({ route: { path: '/api/todos' } });
-      const error = new TodoNotFoundError({ id: 'todo-1' });
+      const error = new TodoNotFoundError('todo-1');
 
-      filter.catch(error, host);
+      runInContext(() => filter.catch(error, host));
 
       expect(res.status).toHaveBeenCalledWith(HttpStatus.NOT_FOUND);
     });
@@ -114,7 +118,7 @@ describe('GlobalExceptionFilter', () => {
     it('logs error for each exception', () => {
       const { host } = makeHost({ route: { path: '/api' } });
 
-      filter.catch(new Error('test'), host);
+      runInContext(() => filter.catch(new Error('test'), host));
 
       expect(logger.error).toHaveBeenCalled();
     });
@@ -123,7 +127,7 @@ describe('GlobalExceptionFilter', () => {
       filter = new GlobalExceptionFilter(logger as unknown as LoggerService, { sentryEnabled: true } as never);
       const { host } = makeHost({ route: { path: '/api' }, userId: 'user-1' });
 
-      filter.catch(new Error('test'), host);
+      runInContext(() => filter.catch(new Error('test'), host));
 
       expect(Sentry.captureException).toHaveBeenCalled();
     });
@@ -132,7 +136,7 @@ describe('GlobalExceptionFilter', () => {
       filter = new GlobalExceptionFilter(logger as unknown as LoggerService, { sentryEnabled: true } as never);
       const { host } = makeHost({ route: { path: '/api' }, userId: 'user-42' });
 
-      filter.catch(new Error('test'), host);
+      runInContext(() => filter.catch(new Error('test'), host));
 
       expect(Sentry.setUser).toHaveBeenCalledWith({ userId: 'user-42' });
     });
@@ -141,7 +145,7 @@ describe('GlobalExceptionFilter', () => {
       filter = new GlobalExceptionFilter(logger as unknown as LoggerService, { sentryEnabled: true } as never);
       const { host } = makeHost({ route: { path: '/api' } });
 
-      filter.catch(new Error('test'), host);
+      runInContext(() => filter.catch(new Error('test'), host));
 
       expect(Sentry.setUser).not.toHaveBeenCalled();
       expect(Sentry.captureException).toHaveBeenCalled();
@@ -150,7 +154,7 @@ describe('GlobalExceptionFilter', () => {
     it('falls back to req.url for metrics label when route is undefined', () => {
       const { host, res } = makeHost();
 
-      filter.catch(new TodoNotFoundError({ id: 'x' }), host);
+      runInContext(() => filter.catch(new TodoNotFoundError('x'), host));
 
       expect(res.status).toHaveBeenCalledWith(HttpStatus.NOT_FOUND);
     });
@@ -158,7 +162,7 @@ describe('GlobalExceptionFilter', () => {
     it('includes details in response when BaseError has details', () => {
       const { host, jsonMock } = makeHost({ route: { path: '/api/todos' } });
 
-      filter.catch(new TodoNotFoundError({ id: 'todo-42' }), host);
+      runInContext(() => filter.catch(new TodoNotFoundError('todo-42'), host));
 
       const call = (jsonMock.mock.calls as [Record<string, unknown>][])[0][0];
       expect(call.details).toBeDefined();
@@ -167,7 +171,7 @@ describe('GlobalExceptionFilter', () => {
     it('omits details from response for InternalServerError', () => {
       const { host, jsonMock } = makeHost({ route: { path: '/api' } });
 
-      filter.catch(new InternalServerError(), host);
+      runInContext(() => filter.catch(new InternalServerError(), host));
 
       const call = (jsonMock.mock.calls as [Record<string, unknown>][])[0][0];
       expect(call.details).toBeUndefined();

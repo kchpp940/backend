@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import Redis from 'ioredis';
 
-import { RedisError } from '../../error-handler';
+import { RedisErrors } from '../../error-handler/errors/redis.errors';
 import { LoggerService } from '../../logger/logger.service';
 import { BaseRedisService } from './clients/_base.client';
 import { CacheRedis } from './clients/cache.client';
@@ -33,7 +33,7 @@ export class RedisManagerService {
           void client.removeAllListeners();
         } catch (error) {
           if (error instanceof Error) {
-            const err = new RedisError(error, 'Redis has problem with destroy');
+            const err = new RedisErrors('Redis has problem with destroy', error);
             this.logger.error({
               ctx: RedisManagerService.name,
               details: err,

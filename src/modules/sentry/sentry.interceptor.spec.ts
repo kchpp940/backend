@@ -8,6 +8,7 @@ jest.mock('@sentry/node', () => ({
 
 import * as Sentry from '@sentry/node';
 
+import { RequestTelemetryContext } from '../../logger/context/request-telemetry.context';
 import { SentryInterceptor } from './sentry.interceptor';
 
 const makeContext = (): ExecutionContext =>
@@ -16,6 +17,8 @@ const makeContext = (): ExecutionContext =>
       getRequest: jest.fn().mockReturnValue({ body: {}, method: 'GET', url: '/api' }),
     }),
   }) as unknown as ExecutionContext;
+
+const runInContext = <T>(callback: () => T): T => RequestTelemetryContext.run('test-trace', callback);
 
 describe('SentryInterceptor', () => {
   let interceptor: SentryInterceptor;
@@ -30,12 +33,14 @@ describe('SentryInterceptor', () => {
       const error = new Error('test error');
       const handler: CallHandler = { handle: jest.fn().mockReturnValue(throwError(() => error)) };
 
-      interceptor.intercept(makeContext(), handler).subscribe({
-        error: (err) => {
-          expect(err).toBe(error);
-          expect(Sentry.captureException).toHaveBeenCalledWith(error, expect.any(Object));
-          done();
-        },
+      runInContext(() => {
+        interceptor.intercept(makeContext(), handler).subscribe({
+          error: (err) => {
+            expect(err).toBe(error);
+            expect(Sentry.captureException).toHaveBeenCalledWith(error, expect.any(Object));
+            done();
+          },
+        });
       });
     });
   });
@@ -44,11 +49,13 @@ describe('SentryInterceptor', () => {
     it('passes through successful responses without capturing', (done) => {
       const handler: CallHandler = { handle: jest.fn().mockReturnValue(of({ id: 1 })) };
 
-      interceptor.intercept(makeContext(), handler).subscribe({
-        complete: () => {
-          expect(Sentry.captureException).not.toHaveBeenCalled();
-          done();
-        },
+      runInContext(() => {
+        interceptor.intercept(makeContext(), handler).subscribe({
+          complete: () => {
+            expect(Sentry.captureException).not.toHaveBeenCalled();
+            done();
+          },
+        });
       });
     });
   });
