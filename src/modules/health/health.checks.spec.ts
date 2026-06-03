@@ -1,6 +1,5 @@
 import type { HealthCheckService, PrismaHealthIndicator } from '@nestjs/terminus';
 
-import type { MetricsService } from '../metrics/metrics.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RedisHealthService } from '../redis-manager/redis-health.service';
 import type { ShutdownHealthService } from '../shutdown/shutdown-health.service';
@@ -13,7 +12,6 @@ describe('HealthChecks', () => {
   let dbIndicator: { pingCheck: jest.Mock };
   let redisHealth: { pingCheck: jest.Mock };
   let shutdownHealth: { check: jest.Mock };
-  let metricsService: { recordHealthDependency: jest.Mock };
 
   beforeEach(() => {
     healthCheckService = {
@@ -32,17 +30,12 @@ describe('HealthChecks', () => {
       check: jest.fn().mockReturnValue({ shutdown: { status: 'up' } }),
     };
 
-    metricsService = {
-      recordHealthDependency: jest.fn(),
-    };
-
     service = new HealthChecks(
       healthCheckService as unknown as HealthCheckService,
       dbIndicator as unknown as PrismaHealthIndicator,
       {} as PrismaService,
       redisHealth as unknown as RedisHealthService,
       shutdownHealth as unknown as ShutdownHealthService,
-      metricsService as unknown as MetricsService,
     );
   });
 
@@ -111,36 +104,6 @@ describe('HealthChecks', () => {
       await service.runCritical();
 
       expect(shutdownHealth.check).toHaveBeenCalled();
-    });
-
-    it('runAll records health dependency metrics', async () => {
-      healthCheckService.check.mockResolvedValue({
-        details: {
-          database: { status: 'up' },
-          redis: { status: 'up' },
-        },
-        status: 'ok',
-      });
-
-      await service.runAll();
-
-      expect(metricsService.recordHealthDependency).toHaveBeenCalledWith('database', true);
-      expect(metricsService.recordHealthDependency).toHaveBeenCalledWith('redis', true);
-    });
-
-    it('runAll records down status for failed dependencies', async () => {
-      healthCheckService.check.mockResolvedValue({
-        details: {
-          database: { status: 'down' },
-          redis: { status: 'up' },
-        },
-        status: 'error',
-      });
-
-      await service.runAll();
-
-      expect(metricsService.recordHealthDependency).toHaveBeenCalledWith('database', false);
-      expect(metricsService.recordHealthDependency).toHaveBeenCalledWith('redis', true);
     });
   });
 });

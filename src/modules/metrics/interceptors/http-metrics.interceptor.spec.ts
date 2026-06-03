@@ -15,9 +15,6 @@ jest.mock('prom-client', () => {
   };
 });
 
-import type { MetricsService } from '../metrics.service';
-
-import { BusinessInterface, BusinessOperation, BusinessStatus } from '../metrics/business.metrics';
 import { HttpMetricsInterceptor } from './http-metrics.interceptor';
 
 const makeContext = (method = 'GET', route = '/api', statusCode = 200): ExecutionContext =>
@@ -30,13 +27,9 @@ const makeContext = (method = 'GET', route = '/api', statusCode = 200): Executio
 
 describe('HttpMetricsInterceptor', () => {
   let interceptor: HttpMetricsInterceptor;
-  let metricsService: { recordBusinessRequest: jest.Mock };
 
   beforeEach(() => {
-    metricsService = {
-      recordBusinessRequest: jest.fn(),
-    };
-    interceptor = new HttpMetricsInterceptor(metricsService as unknown as MetricsService);
+    interceptor = new HttpMetricsInterceptor();
   });
 
   describe('positive cases', () => {
@@ -92,88 +85,6 @@ describe('HttpMetricsInterceptor', () => {
           done.fail();
         },
       });
-    });
-
-    it('records business metrics with error info on failure', (done) => {
-      const error = Object.assign(new Error('test'), {
-        category: 'DOMAIN',
-        code: 'TODO_NOT_FOUND',
-        status: 404,
-      });
-      const handler: CallHandler = { handle: jest.fn().mockReturnValue(throwError(() => error)) };
-
-      interceptor.intercept(makeContext('GET', '/api/v1/todos/:id'), handler).subscribe({
-        error: () => {
-          expect(metricsService.recordBusinessRequest).toHaveBeenCalledWith(
-            BusinessInterface.TODOS,
-            BusinessOperation.FIND_ONE,
-            BusinessStatus.FAILURE,
-            expect.any(Number),
-            'DOMAIN',
-            'TODO_NOT_FOUND',
-          );
-          done();
-        },
-      });
-    });
-
-    it('correctly detects todos interface type', () => {
-      expect(interceptor['detectInterfaceType']('/api/v1/todos')).toBe(BusinessInterface.TODOS);
-      expect(interceptor['detectInterfaceType']('/api/v1/todos/:id')).toBe(BusinessInterface.TODOS);
-    });
-
-    it('correctly detects client-logs interface type', () => {
-      expect(interceptor['detectInterfaceType']('/api/v1/client-logs/web')).toBe(BusinessInterface.CLIENT_LOGS);
-      expect(interceptor['detectInterfaceType']('/api/v1/client-logs/mobile')).toBe(BusinessInterface.CLIENT_LOGS);
-    });
-
-    it('correctly detects health interface type', () => {
-      expect(interceptor['detectInterfaceType']('/health')).toBe(BusinessInterface.HEALTH);
-      expect(interceptor['detectInterfaceType']('/health/deps')).toBe(BusinessInterface.HEALTH);
-    });
-
-    it('correctly detects other interface type', () => {
-      expect(interceptor['detectInterfaceType']('/api/v1/users')).toBe(BusinessInterface.OTHER);
-      expect(interceptor['detectInterfaceType']('/unknown')).toBe(BusinessInterface.OTHER);
-    });
-
-    it('correctly detects create operation for todos', () => {
-      expect(interceptor['detectOperation']('POST', '/api/v1/todos')).toBe(BusinessOperation.CREATE);
-    });
-
-    it('correctly detects findAll operation for todos', () => {
-      expect(interceptor['detectOperation']('GET', '/api/v1/todos')).toBe(BusinessOperation.FIND_ALL);
-    });
-
-    it('correctly detects findOne operation for todos', () => {
-      expect(interceptor['detectOperation']('GET', '/api/v1/todos/:id')).toBe(BusinessOperation.FIND_ONE);
-    });
-
-    it('correctly detects update operation for todos', () => {
-      expect(interceptor['detectOperation']('PATCH', '/api/v1/todos/:id')).toBe(BusinessOperation.UPDATE);
-      expect(interceptor['detectOperation']('PUT', '/api/v1/todos/:id')).toBe(BusinessOperation.UPDATE);
-    });
-
-    it('correctly detects remove operation for todos', () => {
-      expect(interceptor['detectOperation']('DELETE', '/api/v1/todos/:id')).toBe(BusinessOperation.REMOVE);
-    });
-
-    it('correctly detects ingest operation for client-logs single', () => {
-      expect(interceptor['detectOperation']('POST', '/api/v1/client-logs/web')).toBe(BusinessOperation.INGEST);
-      expect(interceptor['detectOperation']('POST', '/api/v1/client-logs/mobile')).toBe(BusinessOperation.INGEST);
-    });
-
-    it('correctly detects batch operation for client-logs batch', () => {
-      expect(interceptor['detectOperation']('POST', '/api/v1/client-logs/batch/web')).toBe(BusinessOperation.BATCH);
-      expect(interceptor['detectOperation']('POST', '/api/v1/client-logs/batch/mobile')).toBe(BusinessOperation.BATCH);
-    });
-
-    it('correctly detects check operation for health', () => {
-      expect(interceptor['detectOperation']('GET', '/health')).toBe(BusinessOperation.CHECK);
-    });
-
-    it('correctly detects unknown operation', () => {
-      expect(interceptor['detectOperation']('GET', '/api/v1/users')).toBe(BusinessOperation.UNKNOWN);
     });
   });
 });

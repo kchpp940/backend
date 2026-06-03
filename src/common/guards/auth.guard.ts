@@ -1,13 +1,21 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import type { CanActivate, ExecutionContext } from '@nestjs/common';
+import type { Request } from 'express';
+
+import { Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Request } from 'express';
+
+import type { UserInterface } from '../../shared/interfaces/user.interface';
 
 import { UserIsNotAuthorizedError } from '../../error-handler/errors/user.errors';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { RoleResolverService } from '../services/role-resolver.service';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly roleResolverService: RoleResolverService,
+  ) {}
 
   canActivate(context: ExecutionContext): boolean {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -17,7 +25,7 @@ export class AuthGuard implements CanActivate {
 
     if (isPublic) return true;
 
-    const req = context.switchToHttp().getRequest<Request & { userId?: string }>();
+    const req = context.switchToHttp().getRequest<Request & UserInterface>();
 
     const auth = req.header('Authorization');
     if (!auth) throw new UserIsNotAuthorizedError();
@@ -25,7 +33,9 @@ export class AuthGuard implements CanActivate {
     const [prefix, token] = auth.split(' ');
     if (prefix !== 'Bearer') throw new UserIsNotAuthorizedError();
 
-    req.userId = Buffer.from(token, 'base64').toString('ascii');
+    const userId = Buffer.from(token, 'base64').toString('ascii');
+    req.userId = userId;
+    req.roles = this.roleResolverService.resolveRoles(userId);
 
     return true;
   }

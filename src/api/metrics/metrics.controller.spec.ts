@@ -5,11 +5,10 @@ import { MetricsController } from './metrics.controller';
 
 describe('MetricsController', () => {
   let controller: MetricsController;
-  let metricsService: { getAllMetrics: jest.Mock; getDatabaseMetrics: jest.Mock };
+  let metricsService: { getDatabaseMetrics: jest.Mock };
 
   beforeEach(async () => {
     metricsService = {
-      getAllMetrics: jest.fn().mockResolvedValue('# HELP all metrics\n'),
       getDatabaseMetrics: jest.fn().mockResolvedValue('# HELP db_slow_query_ms\n'),
     };
 
@@ -22,15 +21,8 @@ describe('MetricsController', () => {
   });
 
   describe('positive cases', () => {
-    it('getAllMetrics returns all metrics string', async () => {
-      const result = await controller.getAllMetrics();
-
-      expect(metricsService.getAllMetrics).toHaveBeenCalled();
-      expect(result).toContain('metrics');
-    });
-
-    it('getDatabaseMetrics returns database metrics string', async () => {
-      const result = await controller.getDatabaseMetrics();
+    it('metrics returns database metrics string', async () => {
+      const result = await controller.metrics();
 
       expect(metricsService.getDatabaseMetrics).toHaveBeenCalled();
       expect(result).toContain('db_slow_query_ms');

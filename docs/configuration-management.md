@@ -205,6 +205,131 @@ await app.listen(configApp.appPort, configApp.appHost);
 
 Using getOrThrow ensures that the application fails fast if a required configuration value is missing.
 
+## Runtime Configuration Diagnostic
+
+To verify the actual configuration values loaded by the running service, a diagnostic endpoint is available. This endpoint provides a sanitized snapshot of non-sensitive configuration values.
+
+### Endpoint Details
+
+- **URL**: `GET /config/diagnostic`
+- **Authentication**: Required (Bearer token)
+- **Authorization**: Admin or Operator role required
+- **Rate Limiting**: Applied
+
+### Role-Based Access Control
+
+Access to the configuration diagnostic endpoint is restricted to users with `admin` or `operator` roles.
+
+#### Role Source Architecture
+
+Roles are resolved through a dedicated `RoleResolverService` that decouples role assignment from the authentication guard. This service maps user IDs to roles based on environment configuration:
+
+- **Role Resolution Flow**:
+  1. `AuthGuard` authenticates the user and extracts `userId` from the Bearer token
+  2. `AuthGuard` calls `RoleResolverService.resolveRoles(userId)` to determine user roles
+  3. `RoleGuard` validates the user has the required roles for the endpoint
+
+- **Role Assignment Rules**:
+  - All authenticated users receive the `User` role by default
+  - Users in `ADMIN_USER_IDS` receive the `Admin` role
+  - Users in `OPERATOR_USER_IDS` receive the `Operator` role
+  - A user can have multiple roles simultaneously
+
+#### Configuration
+
+User roles are configured via environment variables:
+
+- `ADMIN_USER_IDS`: JSON array of user IDs with admin privileges
+- `OPERATOR_USER_IDS`: JSON array of user IDs with operator privileges
+
+Example configuration:
+
+```dotenv
+ADMIN_USER_IDS=["user-id-1", "user-id-2"]
+OPERATOR_USER_IDS=["user-id-3"]
+```
+
+#### Default Deny Strategy
+
+When privileged roles (Admin/Operator) are required but not configured, **access is denied by default**:
+
+- If both `ADMIN_USER_IDS` and `OPERATOR_USER_IDS` are empty arrays, all requests to privileged endpoints will be rejected with `AdminNotConfiguredError` (HTTP 403)
+- This prevents accidental exposure of sensitive configuration in environments where admin access hasn't been properly set up
+- This is a "fail closed" security posture: no one gets access until explicitly granted
+
+### HTTP Status Codes and Error Responses
+
+The endpoint returns the following error responses:
+
+| Scenario                                  | Status Code | Error Code                      | Message                                                     |
+| ----------------------------------------- | ----------- | ------------------------------- | ----------------------------------------------------------- |
+| No `Authorization` header                 | 401         | `USER_IS_NOT_AUTHORIZED`        | "User is not authorized"                                    |
+| Invalid authorization scheme (not Bearer) | 401         | `USER_IS_NOT_AUTHORIZED`        | "User is not authorized"                                    |
+| No admin/operator users configured        | 403         | `ADMIN_NOT_CONFIGURED`          | "Administrator access is not configured for this instance"  |
+| User has no assigned roles                | 403         | `USER_INSUFFICIENT_PERMISSIONS` | "User has no assigned roles"                                |
+| User has `User` role only                 | 403         | `USER_INSUFFICIENT_PERMISSIONS` | "User requires Admin or Operator role(s) but has User"      |
+| User has wrong role                       | 403         | `USER_INSUFFICIENT_PERMISSIONS` | "User requires Admin or Operator role(s) but has \<roles\>" |
+
+### Response Fields (Explicit Whitelist)
+
+The endpoint returns only the following explicitly whitelisted configuration values. No sensitive fields are included, even in masked form:
+
+| Field                 | Description                                            |
+| --------------------- | ------------------------------------------------------ |
+| `environment`         | Current environment name (development/test/production) |
+| `port`                | Application port                                       |
+| `appName`             | Application name                                       |
+| `appVersion`          | Application version                                    |
+| `redisEnabled`        | Redis enabled status                                   |
+| `redisHost`           | Redis host                                             |
+| `redisPort`           | Redis port                                             |
+| `databaseLogLevels`   | Database log levels array                              |
+| `sentryEnabled`       | Sentry enabled status                                  |
+| `swaggerEnabled`      | Swagger enabled status                                 |
+| `swaggerEndpoint`     | Swagger endpoint path                                  |
+| `logLevel`            | Log level                                              |
+| `logPretty`           | Pretty logging enabled                                 |
+| `logExcludeEndpoints` | Endpoints excluded from logging                        |
+
+### Security Considerations
+
+Strict security measures are enforced:
+
+- **Role-based access**: Only admin and operator users can access this endpoint
+- **Explicit whitelist**: Only predefined non-sensitive fields are returned
+- **No sensitive data**: Database credentials, Sentry DSN, API keys, and tokens are never included in the response
+- **No masking fallback**: Sensitive fields are completely excluded, not just masked
+- **Automatic filtering**: Response is filtered through a whitelist to prevent accidental exposure
+- **Fail closed default**: Privileged endpoints are inaccessible until admin/operator users are explicitly configured
+- **Decoupled role resolution**: `RoleResolverService` centralizes role assignment logic, making it easy to extend to other authentication schemes in the future
+
+### Usage Example
+
+```bash
+curl -H "Authorization: Bearer <admin-or-operator-token>" http://localhost:3000/config/diagnostic
+```
+
+Response:
+
+```json
+{
+  "environment": "development",
+  "port": 3000,
+  "appName": "backend",
+  "appVersion": "1.0.0",
+  "redisEnabled": true,
+  "redisHost": "localhost",
+  "redisPort": 6379,
+  "databaseLogLevels": ["query", "error"],
+  "sentryEnabled": true,
+  "swaggerEnabled": true,
+  "swaggerEndpoint": "docs",
+  "logLevel": "info",
+  "logPretty": true,
+  "logExcludeEndpoints": ["/health"]
+}
+```
+
 ## Why This Approach Works Well
 
 This configuration strategy provides several advantages:
@@ -214,5 +339,6 @@ This configuration strategy provides several advantages:
 - secrets remain secure and outside the repository
 - configuration is type-safe and validated
 - configuration is organized into small, predictable modules
+- runtime configuration can be verified via the diagnostic endpoint
 
 As the project grows, this structure allows the configuration system to scale without becoming difficult to maintain.
