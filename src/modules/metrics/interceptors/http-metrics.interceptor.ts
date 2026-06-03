@@ -4,7 +4,7 @@ import { Counter, Gauge, Histogram } from 'prom-client';
 import { Observable } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 
-import { BaseError } from '../../../error-handler/errors/_base.error';
+import { BaseError } from '../../../error-handler';
 
 @Injectable()
 export class HttpMetricsInterceptor implements NestInterceptor {

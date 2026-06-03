@@ -12,7 +12,6 @@ import { environmentConfig } from './config/environment.config';
 import { logConfig } from './config/log.config';
 import { metricsConfig } from './config/metrics.config';
 import { redisConfig } from './config/redis.config';
-import { securityConfig } from './config/security.config';
 import { sentryConfig } from './config/sentry.config';
 import { swaggerConfig } from './config/swagger.config';
 import { throttlerConfig } from './config/throttler.config';
@@ -20,7 +19,6 @@ import { METRICS_ENDPOINT } from './constants/url.contants';
 import { ClientLogsModule } from './features/client-logs/client-logs.module';
 import { TodosModule } from './features/todos/todos.module';
 import { LoggerModule } from './logger/logger.module';
-import { ConfigDiagnosticModule } from './modules/config/config.module';
 import { EnvironmentModule } from './modules/environment/environment.module';
 import { HealthModule } from './modules/health/health.module';
 import { RequestTrackingMiddleware } from './modules/in-flight-requests/request-tracking.middleware';
@@ -68,14 +66,12 @@ import { VersionModule } from './modules/version/version.module';
         redisConfig,
         databaseConfig,
         environmentConfig,
-        securityConfig,
         swaggerConfig,
         metricsConfig,
         sentryConfig,
         logConfig,
       ],
     }),
-    ConfigDiagnosticModule,
     MetricsModule,
     LoggerModule,
     ShutdownModule,

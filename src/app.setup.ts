@@ -18,9 +18,7 @@ import type { sentryConfig } from './config/sentry.config';
 import { AppModule } from './app.module';
 import { UnifiedResponseInterceptor } from './common/interceptors/unified-response.interceptor';
 import { HEALTH_ENDPOINT, METRICS_ENDPOINT } from './constants/url.contants';
-import { DtoValidationErrors } from './error-handler/errors/dto-validation.errors';
-import { GlobalExceptionFilter } from './error-handler/filters/global-exception.filter';
-import { parseValidationErrors } from './error-handler/parsers/validation-error.parser';
+import { DtoValidationError, GlobalExceptionFilter, parseValidationErrors } from './error-handler';
 import { LoggerService } from './logger/logger.service';
 import { loggingMiddleware } from './logger/middlewares/logging.middleware';
 import { traceIdMiddleware } from './logger/middlewares/trace-id.middleware';
@@ -96,7 +94,7 @@ export const appSetup = (app: INestApplication): void => {
   app.useGlobalPipes(
     new ValidationPipe({
       exceptionFactory: (errors: ValidationError[] = []): void => {
-        throw new DtoValidationErrors(parseValidationErrors(errors));
+        throw new DtoValidationError(parseValidationErrors(errors));
       },
       forbidNonWhitelisted: true,
       stopAtFirstError: true,

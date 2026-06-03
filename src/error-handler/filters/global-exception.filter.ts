@@ -8,10 +8,7 @@ import { Counter } from 'prom-client';
 import { sentryConfig } from '../../config/sentry.config';
 import { HEALTH_ENDPOINT } from '../../constants/url.contants';
 import { LoggerService } from '../../logger/logger.service';
-import { BaseError } from '../errors/_base.error';
-import { InternalServerError } from '../errors/common.errors';
-import { frontendMapper } from '../mappers/frontend.mapper';
-import { mapPrismaError } from '../mappers/prisma-error.mapper';
+import { BaseError, InternalServerError, mapPrismaError } from '../errors';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -35,27 +32,22 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     let error: BaseError<unknown> | null = null;
 
-    // 1) Domain errors
     if (exception instanceof BaseError) {
       error = exception;
     }
 
-    // 2) Prisma errors
     if (!error) {
       error = mapPrismaError(exception);
     }
 
-    // 3) Nest HttpException fallback (not show details to user)
     if (!error && exception instanceof HttpException) {
       error = new InternalServerError();
     }
 
-    // 4) Unknown error (not show details to user)
     if (!error) {
       error = new InternalServerError();
     }
 
-    // Need to skip Health endpoints
     if (req.url.slice(1).indexOf(HEALTH_ENDPOINT) === 0 && exception instanceof HttpException) {
       res.status(200).json(exception.getResponse());
 
@@ -95,11 +87,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       stack: exception instanceof Error ? exception.stack : undefined,
     });
 
+    const frontendDetails = error.getFrontendDetails();
     res.status(error.status).json({
       code: error.code,
       message: error.message,
       status: error.status,
-      ...(typeof error.details !== 'undefined' ? { details: frontendMapper(error.details) } : {}),
+      ...(typeof frontendDetails !== 'undefined' ? { details: frontendDetails } : {}),
     });
   }
 }

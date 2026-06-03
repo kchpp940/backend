@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { TodosQueryDto } from '../../api/todos/dtos/queries/todos-query.dto';
 import { CreateTodoDto } from '../../api/todos/dtos/requests/create-todo.dto';
 import { UpdateTodoDto } from '../../api/todos/dtos/requests/update-todo.dto';
-import { TodoNotFoundError } from '../../error-handler/errors/todo.errors';
+import { TodoNotFoundError } from '../../error-handler';
 import { CacheStorage } from '../../modules/redis-manager/storages/cache.storage';
 import { PaginatedEntity } from '../../shared/entities/paginated.entity';
 import { TodosCacheKeys } from './cache-queries/todos.cache-queries';
@@ -54,7 +54,7 @@ export class TodosService {
 
     const todo = await this.todosRepository.findOne(id);
 
-    if (!todo) throw new TodoNotFoundError(id);
+    if (!todo) throw new TodoNotFoundError({ id });
 
     await this.cacheStorage.set(key, todo, 60);
 
@@ -94,7 +94,7 @@ export class TodosService {
   async remove(id: string): Promise<void> {
     const todo = await this.todosRepository.findOne(id);
 
-    if (!todo) throw new TodoNotFoundError(id);
+    if (!todo) throw new TodoNotFoundError({ id });
 
     await this.todosRepository.remove(id);
 

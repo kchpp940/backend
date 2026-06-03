@@ -10,14 +10,15 @@ import {
   getSchemaPath,
 } from '@nestjs/swagger';
 
-import type { BaseError } from '../../error-handler/errors/_base.error';
+import type { BaseError } from '../../error-handler';
 
 import { ApiErrorDto } from '../../shared/dtos/errors.dto';
 import { PaginatedResponseDto, PaginationMetaDto } from '../../shared/dtos/pagination.dto';
 
 type ErrorClass = Type<BaseError<unknown>> & {
+  category: string;
   code: string;
-  message: string;
+  defaultMessage: string;
   status: number;
 };
 
@@ -121,14 +122,14 @@ export const ApiErrors = (...errors: ErrorClass[]): ClassDecorator & MethodDecor
     const status = ErrorCtor.status ?? 500;
 
     return ApiResponse({
-      description: `${ErrorCtor.code}: ${ErrorCtor.message}`,
+      description: `${ErrorCtor.code}: ${ErrorCtor.defaultMessage}`,
       schema: {
         allOf: [
           { $ref: getSchemaPath(ApiErrorDto) },
           {
             properties: {
               code: { example: ErrorCtor.code },
-              message: { example: ErrorCtor.message },
+              message: { example: ErrorCtor.defaultMessage },
               status: { example: ErrorCtor.status },
             },
           },

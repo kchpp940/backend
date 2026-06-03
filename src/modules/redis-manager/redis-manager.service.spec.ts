@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 
-import { RedisErrors } from '../../error-handler/errors/redis.errors';
+import { RedisError } from '../../error-handler';
 import { LoggerService } from '../../logger/logger.service';
 import { CacheRedis } from './clients/cache.client';
 import { ThrottlerRedis } from './clients/throttler.client';
@@ -82,18 +82,18 @@ describe('RedisManagerService', () => {
   });
 });
 
-describe('RedisErrors', () => {
+describe('RedisError', () => {
   describe('negative cases', () => {
     it('falls back to static message when empty string is provided', () => {
-      const err = new RedisErrors('');
+      const err = new RedisError(new Error(''), '');
 
-      expect(err.message).toBe(RedisErrors.message);
+      expect(err.message).toBe(RedisError.defaultMessage);
     });
   });
 
   describe('positive cases', () => {
     it('uses provided message when non-empty', () => {
-      const err = new RedisErrors('custom redis error');
+      const err = new RedisError(new Error(''), 'custom redis error');
 
       expect(err.message).toBe('custom redis error');
     });

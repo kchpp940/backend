@@ -1,18 +1,11 @@
 import { HttpStatus } from '@nestjs/common';
 
-import { ErrorCategory } from '../constants/error-category';
-import { ErrorCodes } from '../constants/error.codes';
-import { BaseError } from './_base.error';
+import { ErrorCategory, ErrorCodes } from './definitions';
+import { createErrorClass } from './factory';
 
-export class TodoNotFoundError extends BaseError<{ id: string }> {
-  static code = ErrorCodes.TODO_NOT_FOUND;
-  static domain = ErrorCategory.DOMAIN;
-  static message = 'Todo not found';
-  static status = HttpStatus.NOT_FOUND;
-
-  constructor(id: string) {
-    super(TodoNotFoundError.message, TodoNotFoundError.code, TodoNotFoundError.domain, TodoNotFoundError.status, {
-      id,
-    });
-  }
-}
+export const TodoNotFoundError = createErrorClass<{ id: string }>({
+  category: ErrorCategory.DOMAIN,
+  code: ErrorCodes.TODO_NOT_FOUND,
+  defaultMessage: 'Todo not found',
+  status: HttpStatus.NOT_FOUND,
+});

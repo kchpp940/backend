@@ -6,8 +6,9 @@ import {
   DatabaseNotFoundError,
   DatabaseUniqueConstraintError,
   DatabaseValidationError,
-} from '../errors/database.errors';
-import { mapPrismaError } from './prisma-error.mapper';
+  hideDatabaseDetails,
+  mapPrismaError,
+} from '../errors';
 
 const CLIENT_VERSION = '1.0.0';
 
@@ -144,9 +145,9 @@ describe('mapPrismaError', () => {
 describe('DatabaseNotFoundError', () => {
   describe('negative cases', () => {
     it('falls back to static message when empty string is provided', () => {
-      const err = new DatabaseNotFoundError('');
+      const err = new DatabaseNotFoundError({}, '');
 
-      expect(err.message).toBe(DatabaseNotFoundError.message);
+      expect(err.message).toBe(DatabaseNotFoundError.defaultMessage);
     });
   });
 });
@@ -154,9 +155,9 @@ describe('DatabaseNotFoundError', () => {
 describe('DatabaseUniqueConstraintError', () => {
   describe('negative cases', () => {
     it('falls back to static message when empty string is provided', () => {
-      const err = new DatabaseUniqueConstraintError('');
+      const err = new DatabaseUniqueConstraintError({}, '');
 
-      expect(err.message).toBe(DatabaseUniqueConstraintError.message);
+      expect(err.message).toBe(DatabaseUniqueConstraintError.defaultMessage);
     });
   });
 });
@@ -164,9 +165,9 @@ describe('DatabaseUniqueConstraintError', () => {
 describe('DatabaseValidationError', () => {
   describe('negative cases', () => {
     it('falls back to static message when empty string is provided', () => {
-      const err = new DatabaseValidationError('');
+      const err = new DatabaseValidationError({}, '');
 
-      expect(err.message).toBe(DatabaseValidationError.message);
+      expect(err.message).toBe(DatabaseValidationError.defaultMessage);
     });
   });
 });
@@ -174,17 +175,85 @@ describe('DatabaseValidationError', () => {
 describe('DatabaseForeignKeyError', () => {
   describe('negative cases', () => {
     it('falls back to static message when empty string is provided', () => {
-      const err = new DatabaseForeignKeyError('');
+      const err = new DatabaseForeignKeyError({}, '');
 
-      expect(err.message).toBe(DatabaseForeignKeyError.message);
+      expect(err.message).toBe(DatabaseForeignKeyError.defaultMessage);
     });
   });
 
   describe('positive cases', () => {
     it('uses provided message when non-empty', () => {
-      const err = new DatabaseForeignKeyError('FK violation');
+      const err = new DatabaseForeignKeyError({}, 'FK violation');
 
       expect(err.message).toBe('FK violation');
+    });
+  });
+});
+
+describe('hideDatabaseDetails', () => {
+  describe('negative cases', () => {
+    it('returns details as-is when driverAdapterError is absent', () => {
+      const details = { someOtherField: 'value' };
+
+      expect(hideDatabaseDetails(details)).toEqual({ message: 'Database constraint violation' });
+    });
+
+    it('returns details as-is when driverAdapterError is not an object', () => {
+      const details = { driverAdapterError: 'not an object' };
+
+      expect(hideDatabaseDetails(details)).toEqual({ message: 'Database constraint violation' });
+    });
+
+    it('returns details as-is when cause is absent from driverAdapterError', () => {
+      const details = { driverAdapterError: { someField: 'x' } };
+
+      expect(hideDatabaseDetails(details)).toEqual({ message: 'Database constraint violation' });
+    });
+
+    it('returns details as-is when cause is not an object', () => {
+      const details = { driverAdapterError: { cause: 'not an object' } };
+
+      expect(hideDatabaseDetails(details)).toEqual({ message: 'Database constraint violation' });
+    });
+
+    it('returns details as-is when cause.message is not a string', () => {
+      const details = { driverAdapterError: { cause: { message: 123 } } };
+
+      expect(hideDatabaseDetails(details)).toEqual({ message: 'Database constraint violation' });
+    });
+
+    it('returns details as-is when cause.message is absent', () => {
+      const details = { driverAdapterError: { cause: { otherProp: true } } };
+
+      expect(hideDatabaseDetails(details)).toEqual({ message: 'Database constraint violation' });
+    });
+  });
+
+  describe('positive cases', () => {
+    it('extracts message string from nested driverAdapterError', () => {
+      const details = {
+        driverAdapterError: {
+          cause: {
+            message: 'Connection refused',
+          },
+        },
+      };
+
+      expect(hideDatabaseDetails(details)).toBe('Connection refused');
+    });
+
+    it('extracts message even when other fields exist in the structure', () => {
+      const details = {
+        driverAdapterError: {
+          cause: {
+            code: 'ETIMEDOUT',
+            message: 'Timeout',
+          },
+          someField: 'x',
+        },
+      };
+
+      expect(hideDatabaseDetails(details)).toBe('Timeout');
     });
   });
 });

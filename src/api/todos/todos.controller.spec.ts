@@ -1,13 +1,11 @@
 import { Test } from '@nestjs/testing';
 
-import { Role } from '../../common/enums/role.enum';
-import { AuthGuard } from '../../common/guards/auth.guard';
 import { TodosService } from '../../features/todos/todos.service';
 import { TodoResponseDto } from './dtos/responses/todo-response.dto';
 import { TodosController } from './todos.controller';
 
 const todoData = { completed: false, description: null, id: 'todo-1', title: 'Test Todo' };
-const userInterface = { roles: [Role.User], userId: 'user-1' };
+const userInterface = { userId: 'user-1' };
 
 describe('TodosController', () => {
   let controller: TodosController;
@@ -25,10 +23,7 @@ describe('TodosController', () => {
     const module = await Test.createTestingModule({
       controllers: [TodosController],
       providers: [{ provide: TodosService, useValue: service }],
-    })
-      .overrideGuard(AuthGuard)
-      .useValue({ canActivate: jest.fn().mockReturnValue(true) })
-      .compile();
+    }).compile();
 
     controller = module.get(TodosController);
 

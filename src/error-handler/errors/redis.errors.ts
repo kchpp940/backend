@@ -1,16 +1,18 @@
 import { HttpStatus } from '@nestjs/common';
 
-import { ErrorCategory } from '../constants/error-category';
-import { ErrorCodes } from '../constants/error.codes';
-import { BaseError } from './_base.error';
+import { ErrorCategory, ErrorCodes } from './definitions';
+import { createErrorClass } from './factory';
 
-export class RedisErrors extends BaseError<Error> {
-  static code = ErrorCodes.REDIS_ERROR;
-  static domain = ErrorCategory.INFRASTRUCTURE;
-  static message = 'System Error';
-  static status = HttpStatus.INTERNAL_SERVER_ERROR;
-
-  constructor(message: string, details?: Error) {
-    super(message || RedisErrors.message, RedisErrors.code, RedisErrors.domain, RedisErrors.status, details);
-  }
+function hideInfraDetails(details: Error): unknown {
+  return {
+    message: details.message,
+  };
 }
+
+export const RedisError = createErrorClass<Error>({
+  category: ErrorCategory.INFRASTRUCTURE,
+  code: ErrorCodes.REDIS_ERROR,
+  defaultMessage: 'System Error',
+  frontendMapper: hideInfraDetails,
+  status: HttpStatus.INTERNAL_SERVER_ERROR,
+});

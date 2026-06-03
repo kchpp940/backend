@@ -1,73 +1,72 @@
 import { HttpStatus } from '@nestjs/common';
 
-import { ErrorCategory } from '../constants/error-category';
-import { ErrorCodes } from '../constants/error.codes';
-import { BaseError } from './_base.error';
+import type { BaseError } from './base.error';
 
-export class DatabaseForeignKeyError extends BaseError<Record<string, unknown>> {
-  static code = ErrorCodes.DATABASE_ERROR;
-  static domain = ErrorCategory.INFRASTRUCTURE;
-  static message = 'Foreign Key Constraint Failed';
-  static status = HttpStatus.CONFLICT;
+import { Prisma } from '../../../database-manager/generated/client';
+import { isObject } from '../../common/utils/objects';
+import { ErrorCategory, ErrorCodes } from './definitions';
+import { createErrorClass } from './factory';
 
-  constructor(message: string, details?: Record<string, unknown>) {
-    super(
-      message || DatabaseForeignKeyError.message,
-      DatabaseForeignKeyError.code,
-      DatabaseForeignKeyError.domain,
-      DatabaseForeignKeyError.status,
-      details,
-    );
-  }
+export function hideDatabaseDetails(details: Record<string, unknown>): unknown {
+  const causeMessage =
+    isObject(details) &&
+    isObject(details.driverAdapterError) &&
+    isObject(details.driverAdapterError.cause) &&
+    typeof details.driverAdapterError.cause.message === 'string'
+      ? details.driverAdapterError.cause.message
+      : undefined;
+
+  return causeMessage ?? { message: 'Database constraint violation' };
 }
 
-export class DatabaseNotFoundError extends BaseError<Record<string, unknown>> {
-  static code = ErrorCodes.DATABASE_ERROR;
-  static domain = ErrorCategory.INFRASTRUCTURE;
-  static message = 'Not Found';
-  static status = HttpStatus.NOT_FOUND;
+export const DatabaseValidationError = createErrorClass<Record<string, unknown>>({
+  category: ErrorCategory.INFRASTRUCTURE,
+  code: ErrorCodes.DATABASE_VALIDATION,
+  defaultMessage: 'Validation Error',
+  frontendMapper: hideDatabaseDetails,
+  status: HttpStatus.BAD_REQUEST,
+});
 
-  constructor(message: string, details?: Record<string, unknown>) {
-    super(
-      message || DatabaseNotFoundError.message,
-      DatabaseNotFoundError.code,
-      DatabaseNotFoundError.domain,
-      DatabaseNotFoundError.status,
-      details,
-    );
+export const DatabaseUniqueConstraintError = createErrorClass<Record<string, unknown>>({
+  category: ErrorCategory.INFRASTRUCTURE,
+  code: ErrorCodes.DATABASE_UNIQUE_CONSTRAINT,
+  defaultMessage: 'Conflict',
+  frontendMapper: hideDatabaseDetails,
+  status: HttpStatus.CONFLICT,
+});
+
+export const DatabaseForeignKeyError = createErrorClass<Record<string, unknown>>({
+  category: ErrorCategory.INFRASTRUCTURE,
+  code: ErrorCodes.DATABASE_FOREIGN_KEY,
+  defaultMessage: 'Foreign Key Constraint Failed',
+  frontendMapper: hideDatabaseDetails,
+  status: HttpStatus.CONFLICT,
+});
+
+export const DatabaseNotFoundError = createErrorClass<Record<string, unknown>>({
+  category: ErrorCategory.INFRASTRUCTURE,
+  code: ErrorCodes.DATABASE_NOT_FOUND,
+  defaultMessage: 'Not Found',
+  frontendMapper: hideDatabaseDetails,
+  status: HttpStatus.NOT_FOUND,
+});
+
+export function mapPrismaError(err: unknown): BaseError<Error | Record<string, unknown> | void> | null {
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    switch (err.code) {
+      case 'P2000':
+      case 'P2006':
+      case 'P2007':
+      case 'P2011':
+        return new DatabaseValidationError(err.meta as Record<string, unknown>, 'Validation Error');
+      case 'P2002':
+        return new DatabaseUniqueConstraintError(err.meta as Record<string, unknown>, 'Unique constraint failed');
+      case 'P2003':
+        return new DatabaseForeignKeyError(err.meta as Record<string, unknown>, 'Foreign key constraint failed');
+      case 'P2025':
+        return new DatabaseNotFoundError(err.meta as Record<string, unknown>, 'Record not found');
+    }
   }
-}
 
-export class DatabaseUniqueConstraintError extends BaseError<Record<string, unknown>> {
-  static code = ErrorCodes.DATABASE_ERROR;
-  static domain = ErrorCategory.INFRASTRUCTURE;
-  static message = 'Conflict';
-  static status = HttpStatus.CONFLICT;
-
-  constructor(message: string, details?: Record<string, unknown>) {
-    super(
-      message || DatabaseUniqueConstraintError.message,
-      DatabaseUniqueConstraintError.code,
-      DatabaseUniqueConstraintError.domain,
-      DatabaseUniqueConstraintError.status,
-      details,
-    );
-  }
-}
-
-export class DatabaseValidationError extends BaseError<Record<string, unknown>> {
-  static code = ErrorCodes.DATABASE_ERROR;
-  static domain = ErrorCategory.INFRASTRUCTURE;
-  static message = 'Validation Error';
-  static status = HttpStatus.BAD_REQUEST;
-
-  constructor(message: string, details?: Record<string, unknown>) {
-    super(
-      message || DatabaseValidationError.message,
-      DatabaseValidationError.code,
-      DatabaseValidationError.domain,
-      DatabaseValidationError.status,
-      details,
-    );
-  }
+  return null;
 }

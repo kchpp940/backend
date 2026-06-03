@@ -17,8 +17,7 @@ import * as Sentry from '@sentry/node';
 
 import type { LoggerService } from '../../logger/logger.service';
 
-import { InternalServerError } from '../errors/common.errors';
-import { TodoNotFoundError } from '../errors/todo.errors';
+import { InternalServerError, TodoNotFoundError } from '../errors';
 import { GlobalExceptionFilter } from './global-exception.filter';
 
 interface MakeHostResult {
@@ -105,7 +104,7 @@ describe('GlobalExceptionFilter', () => {
   describe('positive cases', () => {
     it('handles BaseError directly', () => {
       const { host, res } = makeHost({ route: { path: '/api/todos' } });
-      const error = new TodoNotFoundError('todo-1');
+      const error = new TodoNotFoundError({ id: 'todo-1' });
 
       filter.catch(error, host);
 
@@ -151,7 +150,7 @@ describe('GlobalExceptionFilter', () => {
     it('falls back to req.url for metrics label when route is undefined', () => {
       const { host, res } = makeHost();
 
-      filter.catch(new TodoNotFoundError('x'), host);
+      filter.catch(new TodoNotFoundError({ id: 'x' }), host);
 
       expect(res.status).toHaveBeenCalledWith(HttpStatus.NOT_FOUND);
     });
@@ -159,7 +158,7 @@ describe('GlobalExceptionFilter', () => {
     it('includes details in response when BaseError has details', () => {
       const { host, jsonMock } = makeHost({ route: { path: '/api/todos' } });
 
-      filter.catch(new TodoNotFoundError('todo-42'), host);
+      filter.catch(new TodoNotFoundError({ id: 'todo-42' }), host);
 
       const call = (jsonMock.mock.calls as [Record<string, unknown>][])[0][0];
       expect(call.details).toBeDefined();

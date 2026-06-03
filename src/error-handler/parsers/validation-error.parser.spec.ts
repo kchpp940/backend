@@ -1,6 +1,6 @@
 import { ValidationError } from 'class-validator';
 
-import { parseValidationErrors } from './validation-error.parser';
+import { parseValidationErrors } from '../errors';
 
 function makeError(
   property: string,
