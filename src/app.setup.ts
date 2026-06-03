@@ -42,17 +42,9 @@ export const appSetup = (app: INestApplication): void => {
 
   const environmentService = app.get(EnvironmentService);
 
-  // ---------------------------------------------------------------------------
-  // Middleware execution order is CRITICAL for telemetry context propagation
-  // ---------------------------------------------------------------------------
-  // 1. traceIdMiddleware - Creates AsyncLocalStorage context for each request.
-  //    This MUST be first so all subsequent middlewares/interceptors can access
-  //    telemetry data via RequestTelemetryContext. Missing this first causes
-  //    telemetry_degradation_total counter to increment.
-  // 2. sentryContextMiddleware - Populates Sentry tags from telemetry context
-  // 3. loggingMiddleware - Logs request using telemetry context
-  // 4. httpContext.middleware - express-http-context (legacy, avoid for new code)
-  // ---------------------------------------------------------------------------
+  // Context (express middleware)
+  app.use(httpContext.middleware);
+
   app.use(traceIdMiddleware);
 
   if (configSentry.sentryEnabled) {
@@ -60,9 +52,6 @@ export const appSetup = (app: INestApplication): void => {
   }
 
   app.use(loggingMiddleware(configLog, logger));
-
-  // Context (express middleware) - Legacy, prefer RequestTelemetryContext
-  app.use(httpContext.middleware);
 
   // Security & transport middlewares
   if (environmentService.isProduction()) {

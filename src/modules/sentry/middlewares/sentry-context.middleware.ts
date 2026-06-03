@@ -2,27 +2,18 @@ import type { NextFunction, Request, Response } from 'express';
 
 import Sentry from '@sentry/node';
 
-import { RequestTelemetryContext } from '../../../logger/context/request-telemetry.context';
+import { RequestContext } from '../../../logger/context/request-context';
 
 export const sentryContextMiddleware =
   () =>
   (req: Request & { userId?: string }, res: Response, next: NextFunction): void => {
-    RequestTelemetryContext.populateFromRequest(req);
+    const traceId = RequestContext.getTraceId();
 
-    const telemetry = RequestTelemetryContext.getRequiredAll();
-
-    Sentry.setTag('traceId', telemetry.traceId);
-    Sentry.setTag('route', telemetry.route);
-    Sentry.setTag('method', telemetry.method);
+    Sentry.setTag('traceId', traceId);
     Sentry.setContext('request', {
-      method: telemetry.method,
-      route: telemetry.route,
-      url: telemetry.path,
+      method: req.method,
+      url: req.url,
     });
-
-    if (telemetry.userId) {
-      Sentry.setUser({ userId: telemetry.userId });
-    }
 
     next();
   };

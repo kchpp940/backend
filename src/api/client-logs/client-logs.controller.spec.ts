@@ -37,8 +37,8 @@ describe('ClientLogsController', () => {
 
   beforeEach(async () => {
     service = {
-      processMobileLog: jest.fn(),
-      processWebLog: jest.fn(),
+      processMobileLog: jest.fn().mockResolvedValue(undefined),
+      processWebLog: jest.fn().mockResolvedValue(undefined),
     };
 
     const module = await Test.createTestingModule({
@@ -53,12 +53,10 @@ describe('ClientLogsController', () => {
 
   describe('postWebLogs', () => {
     describe('negative cases', () => {
-      it('propagates service error', () => {
-        service.processWebLog.mockImplementation(() => {
-          throw new Error('s3 error');
-        });
+      it('propagates service rejection', async () => {
+        service.processWebLog.mockRejectedValue(new Error('s3 error'));
 
-        expect(() => controller.postWebLogs(webLogDto)).toThrow('s3 error');
+        await expect(controller.postWebLogs(webLogDto)).rejects.toThrow('s3 error');
       });
     });
 
@@ -72,8 +70,8 @@ describe('ClientLogsController', () => {
         expect(WebLogLevel.CRITICAL).toBe('critical');
       });
 
-      it('delegates to service and returns void', () => {
-        const result = controller.postWebLogs(webLogDto);
+      it('delegates to service and resolves void', async () => {
+        const result = await controller.postWebLogs(webLogDto);
 
         expect(service.processWebLog).toHaveBeenCalledWith(webLogDto);
         expect(result).toBeUndefined();
@@ -83,18 +81,16 @@ describe('ClientLogsController', () => {
 
   describe('postMobileLogs', () => {
     describe('negative cases', () => {
-      it('propagates service error', () => {
-        service.processMobileLog.mockImplementation(() => {
-          throw new Error('s3 error');
-        });
+      it('propagates service rejection', async () => {
+        service.processMobileLog.mockRejectedValue(new Error('s3 error'));
 
-        expect(() => controller.postMobileLogs(mobileLogDto)).toThrow('s3 error');
+        await expect(controller.postMobileLogs(mobileLogDto)).rejects.toThrow('s3 error');
       });
     });
 
     describe('positive cases', () => {
-      it('delegates to service and returns void', () => {
-        const result = controller.postMobileLogs(mobileLogDto);
+      it('delegates to service and resolves void', async () => {
+        const result = await controller.postMobileLogs(mobileLogDto);
 
         expect(service.processMobileLog).toHaveBeenCalledWith(mobileLogDto);
         expect(result).toBeUndefined();

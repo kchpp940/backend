@@ -7,7 +7,6 @@ import { Counter } from 'prom-client';
 
 import { sentryConfig } from '../../config/sentry.config';
 import { HEALTH_ENDPOINT } from '../../constants/url.contants';
-import { RequestTelemetryContext } from '../../logger/context/request-telemetry.context';
 import { LoggerService } from '../../logger/logger.service';
 import { BaseError } from '../errors/_base.error';
 import { InternalServerError } from '../errors/common.errors';
@@ -18,7 +17,7 @@ import { mapPrismaError } from '../mappers/prisma-error.mapper';
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly httpErrors = new Counter({
     help: 'Total HTTP errors',
-    labelNames: ['method', 'route', 'status', 'errorCategory'],
+    labelNames: ['method', 'route', 'status'],
     name: 'http_errors_total',
   });
 
@@ -30,83 +29,76 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
-    const req = ctx.getRequest<Request & { userId?: string }>();
+    const req = ctx.getRequest<Request & { traceId: string; userId?: string }>();
     const res = ctx.getResponse<Response>();
-
-    RequestTelemetryContext.populateFromRequest(req);
+    const traceId = req.traceId;
 
     let error: BaseError<unknown> | null = null;
 
+    // 1) Domain errors
     if (exception instanceof BaseError) {
       error = exception;
     }
 
+    // 2) Prisma errors
     if (!error) {
       error = mapPrismaError(exception);
     }
 
+    // 3) Nest HttpException fallback (not show details to user)
     if (!error && exception instanceof HttpException) {
       error = new InternalServerError();
     }
 
+    // 4) Unknown error (not show details to user)
     if (!error) {
       error = new InternalServerError();
     }
 
-    RequestTelemetryContext.populateFromError(error);
-
-    const telemetry = RequestTelemetryContext.getRequiredAll();
-
+    // Need to skip Health endpoints
     if (req.url.slice(1).indexOf(HEALTH_ENDPOINT) === 0 && exception instanceof HttpException) {
       res.status(200).json(exception.getResponse());
 
       return;
     }
 
-    if (telemetry.status >= 400) {
-      this.httpErrors
-        .labels(telemetry.method, telemetry.route, telemetry.status.toString(), telemetry.errorCategory)
-        .inc();
+    if (+error.status >= 400) {
+      const route = req.route as { path: string };
+      this.httpErrors.labels(req.method, route?.path || req.url, error.status.toString()).inc();
     }
 
     if (this.configSentry.sentryEnabled) {
-      if (telemetry.userId) {
-        Sentry.setUser({ userId: telemetry.userId });
+      const userId = req.userId;
+
+      if (typeof userId === 'string') {
+        Sentry.setUser({ userId });
       }
 
       Sentry.captureException(exception, {
         extra: {
           body: req.body,
-          errorCategory: telemetry.errorCategory,
           params: req.params,
           query: req.query,
-          route: telemetry.route,
-          traceId: telemetry.traceId,
+          traceId,
         },
       });
     }
-
     const infraError = exception instanceof HttpException;
 
     this.loggerService.error({
       code: error.code,
       ctx: GlobalExceptionFilter.name,
       details: infraError ? exception.getResponse() : error.details,
-      errorCategory: telemetry.errorCategory,
-      method: telemetry.method,
+      method: req.method,
       msg: error.message,
-      path: telemetry.path,
-      route: telemetry.route,
+      path: req.url,
       stack: exception instanceof Error ? exception.stack : undefined,
-      traceId: telemetry.traceId,
     });
 
-    res.status(telemetry.status).json({
+    res.status(error.status).json({
       code: error.code,
-      errorCategory: telemetry.errorCategory,
       message: error.message,
-      status: telemetry.status,
-      traceId: telemetry.traceId,
+      status: error.status,
       ...(typeof error.details !== 'undefined' ? { details: frontendMapper(error.details) } : {}),
     });
   }

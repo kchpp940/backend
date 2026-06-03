@@ -1,31 +1,26 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import * as Sentry from '@sentry/node';
 import { Request } from 'express';
-import { Observable, throwError } from 'rxjs';
-import { catchError } from 'rxjs';
+import { catchError, Observable, throwError } from 'rxjs';
 
-import { RequestTelemetryContext } from '../../logger/context/request-telemetry.context';
+import { RequestContext } from '../../logger/context/request-context';
 
 @Injectable()
 export class SentryInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const req = context.switchToHttp().getRequest<Request>();
+
+    const traceId = RequestContext.getTraceId();
 
     return next.handle().pipe(
       catchError((err: Error) => {
-        RequestTelemetryContext.populateFromRequest(req);
-        RequestTelemetryContext.populateFromError(err);
-
-        const telemetry = RequestTelemetryContext.getRequiredAll();
-
         Sentry.captureException(err, {
           extra: {
             body: req.body,
-            errorCategory: telemetry.errorCategory,
-            method: telemetry.method,
-            route: telemetry.route,
-            traceId: telemetry.traceId,
-            url: telemetry.path,
+            method: req.method,
+            traceId,
+            url: req.url,
           },
         });
 

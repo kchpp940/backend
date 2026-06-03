@@ -1,45 +1,43 @@
-import { Test } from '@nestjs/testing';
-
-jest.mock('prom-client', () => ({
-  Counter: jest.fn().mockImplementation(() => ({ inc: jest.fn(), labels: jest.fn().mockReturnThis() })),
-  Gauge: jest.fn().mockImplementation(() => ({ set: jest.fn() })),
-  register: { getSingleMetricAsString: jest.fn().mockResolvedValue('metrics_output') },
-}));
+import { register } from 'prom-client';
 
 import { MetricsService } from './metrics.service';
-import { DatabaseMetrics } from './metrics/database.metrics';
 
 describe('MetricsService', () => {
   let service: MetricsService;
   let databaseMetrics: { getTopSlowQueries: jest.Mock };
+  let acceptedCounter: { inc: jest.Mock };
+  let failedCounter: { inc: jest.Mock };
+  let batchSizeGauge: { set: jest.Mock };
 
-  beforeEach(async () => {
+  beforeEach(() => {
+    register.clear();
+
     databaseMetrics = {
       getTopSlowQueries: jest.fn().mockResolvedValue([]),
     };
 
-    const module = await Test.createTestingModule({
-      providers: [MetricsService, { provide: DatabaseMetrics, useValue: databaseMetrics }],
-    }).compile();
+    acceptedCounter = { inc: jest.fn() };
+    failedCounter = { inc: jest.fn() };
+    batchSizeGauge = { set: jest.fn() };
 
-    service = module.get(MetricsService);
-    service.onModuleInit();
+    service = new MetricsService(
+      databaseMetrics as never,
+      acceptedCounter as never,
+      failedCounter as never,
+      batchSizeGauge as never,
+    );
   });
 
   describe('positive cases', () => {
-    it('getDatabaseMetrics returns metric string', async () => {
-      const result = await service.getDatabaseMetrics();
-
-      expect(typeof result).toBe('string');
-    });
-
     it('updateDatabaseMetrics calls getTopSlowQueries', async () => {
+      service.onModuleInit();
       await service.updateDatabaseMetrics();
 
       expect(databaseMetrics.getTopSlowQueries).toHaveBeenCalledWith(10);
     });
 
     it('updateDatabaseMetrics sets gauge for each query', async () => {
+      service.onModuleInit();
       databaseMetrics.getTopSlowQueries.mockResolvedValue([
         { calls: 10, maxMs: 200, meanMs: 100, query: 'SELECT 1', totalMs: 1000 },
         { calls: 5, maxMs: 50, meanMs: 25, query: 'SELECT 2', totalMs: 125 },
@@ -50,6 +48,24 @@ describe('MetricsService', () => {
 
     it('onModuleInit does not throw', () => {
       expect(() => service.onModuleInit()).not.toThrow();
+    });
+
+    it('recordClientLogsAccepted increments accepted counter', () => {
+      service.recordClientLogsAccepted('web', 5);
+
+      expect(acceptedCounter.inc).toHaveBeenCalledWith({ source: 'web' }, 5);
+    });
+
+    it('recordClientLogsFailed increments failed counter', () => {
+      service.recordClientLogsFailed('mobile', 2);
+
+      expect(failedCounter.inc).toHaveBeenCalledWith({ source: 'mobile' }, 2);
+    });
+
+    it('recordClientLogsBatchSize sets batch size gauge', () => {
+      service.recordClientLogsBatchSize('web', 10);
+
+      expect(batchSizeGauge.set).toHaveBeenCalledWith({ source: 'web' }, 10);
     });
   });
 });

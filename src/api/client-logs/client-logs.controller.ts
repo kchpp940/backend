@@ -22,8 +22,8 @@ export class ClientLogsController {
   @ApiResponse({ description: 'Logs accepted', status: HttpStatus.NO_CONTENT })
   @HttpCode(HttpStatus.NO_CONTENT)
   @Post('mobile')
-  postMobileLogs(@Body() dto: MobileLogDto): void {
-    this.clientLogsService.processMobileLog(dto);
+  async postMobileLogs(@Body() dto: MobileLogDto): Promise<void> {
+    await this.clientLogsService.processMobileLog(dto);
   }
 
   @ApiBody({ type: WebLogDto })
@@ -32,7 +32,7 @@ export class ClientLogsController {
   @ApiResponse({ description: 'Logs accepted', status: HttpStatus.NO_CONTENT })
   @HttpCode(HttpStatus.NO_CONTENT)
   @Post('web')
-  postWebLogs(@Body() dto: WebLogDto): void {
-    this.clientLogsService.processWebLog(dto);
+  async postWebLogs(@Body() dto: WebLogDto): Promise<void> {
+    await this.clientLogsService.processWebLog(dto);
   }
 }

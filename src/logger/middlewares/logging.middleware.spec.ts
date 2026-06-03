@@ -3,7 +3,6 @@ import type { NextFunction, Request, Response } from 'express';
 import type { LogConfigInterface } from '../../config/interfaces/log-config.interface';
 import type { LoggerService } from '../logger.service';
 
-import { RequestTelemetryContext } from '../context/request-telemetry.context';
 import { loggingMiddleware } from './logging.middleware';
 
 const makeConfig = (excludeEndpoints: string[] = []): LogConfigInterface =>
@@ -52,12 +51,8 @@ describe('loggingMiddleware', () => {
       const logger = makeLogger();
       const next = jest.fn() as NextFunction;
       const middleware = loggingMiddleware(makeConfig(), logger as unknown as LoggerService);
-      const req = makeReq('/api/todos', 'POST', { title: 'test' });
 
-      RequestTelemetryContext.run('test-trace', () => {
-        RequestTelemetryContext.populateFromRequest(req);
-        middleware(req, {} as Response, next);
-      });
+      middleware(makeReq('/api/todos', 'POST', { title: 'test' }), {} as Response, next);
 
       expect(logger.log).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -74,9 +69,7 @@ describe('loggingMiddleware', () => {
       const next = jest.fn() as NextFunction;
       const middleware = loggingMiddleware(makeConfig(), logger as unknown as LoggerService);
 
-      RequestTelemetryContext.run('test-trace', () => {
-        middleware(makeReq('/api/todos'), {} as Response, next);
-      });
+      middleware(makeReq('/api/todos'), {} as Response, next);
 
       expect(next).toHaveBeenCalled();
     });
@@ -86,12 +79,8 @@ describe('loggingMiddleware', () => {
       const next = jest.fn() as NextFunction;
       const middleware = loggingMiddleware(makeConfig(), logger as unknown as LoggerService);
       const body = { title: 'test' };
-      const req = makeReq('/api/todos', 'POST', body);
 
-      RequestTelemetryContext.run('test-trace', () => {
-        RequestTelemetryContext.populateFromRequest(req);
-        middleware(req, {} as Response, next);
-      });
+      middleware(makeReq('/api/todos', 'POST', body), {} as Response, next);
 
       expect(logger.log).toHaveBeenCalledWith(expect.objectContaining({ details: JSON.stringify(body) }));
     });
